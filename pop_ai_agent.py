@@ -19,7 +19,7 @@ import streamlit as st
 from openai import OpenAI, APIStatusError
 
 APP_NAME = "Henry AI advisor -demo"
-DEFAULT_MODEL = "gpt-4o-mini"  # halpa ja nopea vaihtoehto
+DEFAULT_MODEL = "gpt-5-nano"  # halpa ja nopea vaihtoehto
 # Poista mahdollinen model-valinta sivupalkista — aina käytetään DEFAULT_MODEL
 
 # ===== Henryn tausta (ABOUT_ME) =====
@@ -250,7 +250,7 @@ if user_msg:
     client = get_client()
     if client:
         try:
-            reply_text = try_chat_with_fallbacks(client, model, st.session_state.messages)
+            reply_text = try_chat_with_fallbacks(client, DEFAULT_MODEL, st.session_state.messages)
         except Exception:
             st.warning("OpenAI-chat ei toiminut varamalleillakaan → näytetään paikallinen demovastaus.")
             reply_text = local_demo_response(user_msg)
