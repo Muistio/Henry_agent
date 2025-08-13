@@ -286,6 +286,8 @@ def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
 # -------------------------------
 def local_demo_response(user_query: str) -> str:
     plan = (
+        "Älä puhu pankkialasta tai POP pankin työhakemuksesta ellei siitä erikseen kysytä tai asiaa mainita"
+        "Pyri vastaamaan ytimekkäästi"
         "### 30/60/90 päivän suunnitelma\n"
         "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
         "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
