@@ -213,30 +213,11 @@ with st.sidebar:
     # Diagnostiikka: mistä avain löytyy
     src = get_api_key_source()
     if src == "secrets":
-        st.info("API-yhteys: ✅ löytyi (Streamlit Secrets)")
+        st.info("Henry linjoilla: ✅  ")
     elif src == "env":
         st.info("API-yhteys: ✅ löytyi (Environment)")
     else:
         st.warning("API-yhteys: ❌ ei avainta")
-
-    # Testaa yhteys napista
-    if st.button("Testaa OpenAI-yhteys"):
-        key = get_api_key()
-        if not key:
-            st.error("Avain puuttuu. Lisää OPENAI_API_KEY Streamlit Secretsiin tai ympäristöön.")
-        else:
-            try:
-                test_client = get_client()
-                r = test_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "system", "content": "Say OK"}],
-                    max_tokens=4,
-                    temperature=0,
-                )
-                _ = r.choices[0].message.content
-                st.success("OpenAI-yhteys OK ✅")
-            except Exception as e:
-                st.error(f"OpenAI-virhe: {e.__class__.__name__}: {e}")
 
 # Viestipino
 if "messages" not in st.session_state:
