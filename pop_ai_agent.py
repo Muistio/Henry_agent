@@ -17,7 +17,7 @@ from typing import List, Dict, Any, Optional
 import streamlit as st
 from openai import OpenAI
 
-APP_NAME = "Henry AI advisor -demo"
+APP_NAME = "Botti Henry 🤖"
 DEFAULT_MODEL = "gpt-4.1-mini"  # ensisijainen, halpa malli
 
 # ===== Henryn tausta (ABOUT_ME) =====
