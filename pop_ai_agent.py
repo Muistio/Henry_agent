@@ -17,7 +17,7 @@ Pika-aloitus:
 import io
 import os
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
 import numpy as np
 import streamlit as st
@@ -79,7 +79,7 @@ class MiniStore:
     def __init__(self):
         self.chunks: List[Chunk] = []
 
-    def add_doc(self, doc_id: str, text: str, embedder: Optional[callable], meta: Dict[str, Any]):
+    def add_doc(self, doc_id: str, text: str, embedder: Optional[Callable[[str], np.ndarray]], meta: Dict[str, Any]):
         for piece in split_into_chunks(text, 1200):
             vec = None
             if embedder is not None:
@@ -92,7 +92,7 @@ class MiniStore:
                 vec = np.zeros(8, dtype=np.float32)
             self.chunks.append(Chunk(doc_id=doc_id, text=piece, vector=vec, meta=meta))
 
-    def search(self, query: str, embedder: Optional[callable], k: int = 5):
+    def search(self, query: str, embedder: Optional[Callable[[str], np.ndarray]], k: int = 5):
         if not self.chunks:
             return []
         qv = None
@@ -193,6 +193,43 @@ def tool_ai_governance_checklist() -> str:
     ])
 
 # -------------------------------
+# Safe chat + local fallback
+# -------------------------------
+def local_demo_response(query: str, context: str) -> str:
+    bullets = tool_bullets_ai_opportunities()
+    gov = tool_ai_governance_checklist()
+    plan = (
+        "### 30/60/90 päivän suunnitelma\n"
+        "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
+        "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
+        "- **90 pv**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, tuotantoprosessi (MLOps/LLMOps).\n"
+    )
+    ctx_note = f"> **Konteksti (poimintoja):**\n{context[:1000]}\n\n" if context else ""
+    return (
+        "#### Paikallinen demotila (ei OpenAI-vastauksia)\n"
+        "OpenAI-kutsu ei ole käytettävissä (avain/kiintiö/verkko). Alla ehdotuksia demoa varten:\n\n"
+        f"{ctx_note}"
+        "#### Pankin AI-mahdollisuudet\n"
+        f"{bullets}\n\n"
+        "#### AI governance – muistilista\n"
+        f"{gov}\n\n"
+        f"{plan}"
+        "Pyydä täydentämään yksityiskohdat tai lataamaan dokumentteja (PDF/TXT), niin demo viittaa niihin RAG-haulla."
+    )
+
+def safe_chat_completion(client: OpenAI, model: str, messages: list, temperature: float = 0.3):
+    try:
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+    except Exception:
+        # Älä kaada sovellusta, kerro mitä tapahtui ja palauta None
+        st.warning("OpenAI-chat ei ole käytettävissä (avain/kiintiö/verkko). Näytetään paikallinen demovastaus.")
+        return None
+
+# -------------------------------
 # UI
 # -------------------------------
 st.set_page_config(page_title=APP_NAME, page_icon="🤖")
@@ -232,7 +269,7 @@ if not st.session_state.bootstrapped:
 
 # Banneri, jos embeddings fallback on päällä
 if st.session_state.get("embed_fallback"):
-    st.warning("Embeddings ei käytettävissä (avain/kiintiö) – käytössä avainsana-haku. Voit jatkaa silti.")
+    st.info("Embeddings ei käytettävissä (avain/kiintiö). Haku toimii avainsanoilla, chatilla on paikallinen fallback.")
 
 # Uploadit
 if up_files:
@@ -248,54 +285,4 @@ if "messages" not in st.session_state:
 
 def build_context(query: str) -> str:
     emb_fn = (lambda txt: embed_text(txt, client)) if client else None
-    hits = store.search(query, emb_fn, k=5)
-    ctx = []
-    for h in hits:
-        tag = h.meta.get("source", "doc")
-        ctx.append(f"[Lähde: {tag}]\n{h.text}")
-    return "\n\n".join(ctx)
-
-user_text = st.chat_input("Kysy roolista, demoista tai projekteista…")
-if user_text:
-    st.session_state.messages.append({"role": "user", "content": user_text})
-
-# Historia
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-
-# Vastaus (vaatii OpenAI-avaimen chatille)
-if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
-    if not client:
-        with st.chat_message("assistant"):
-            st.info("Lisää OPENAI_API_KEY sivupalkista, jotta voin vastata.")
-    else:
-        query = st.session_state.messages[-1]["content"]
-        context = build_context(query)
-        sys_prompt = (
-            PERSONA
-            + ("\n\nKonteksti (tiivistä, lainaa maltilla):\n" + context if context else "")
-            + "\n\nPikatyökalut:\n"
-            + tool_bullets_ai_opportunities()
-            + "\n\nGovernance-checklist:\n"
-            + tool_ai_governance_checklist()
-        )
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages,
-            temperature=0.3,
-        )
-        answer = resp.choices[0].message.content
-        st.session_state.messages.append({"role": "assistant", "content": answer})
-        with st.chat_message("assistant"):
-            st.markdown(answer)
-
-# Footer
-st.markdown("---")
-st.subheader("Mitä tämä demo näyttää")
-st.markdown(
-    "- Keskusteltava agentti, joka tuntee työpaikkailmoituksen.\n"
-    "- RAG-haku job adista ja (valinnaisesti) ladatuista dokumenteista.\n"
-    "- Valmiit AI-ideat ja AI governance -tarkistuslista.\n"
-    "- Turvalliset fallbackit, ettei appi kaadu vaikka embeddings-quota loppuisi."
-)
+    h
