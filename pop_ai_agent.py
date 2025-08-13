@@ -285,4 +285,59 @@ if "messages" not in st.session_state:
 
 def build_context(query: str) -> str:
     emb_fn = (lambda txt: embed_text(txt, client)) if client else None
-    h
+    hits = store.search(query, emb_fn, k=5)
+    ctx = []
+    for h in hits:
+        tag = h.meta.get("source", "doc")
+        ctx.append(f"[Lähde: {tag}]\n{h.text}")
+    return "\n\n".join(ctx)
+
+user_text = st.chat_input("Kysy roolista, demoista tai projekteista…")
+if user_text:
+    st.session_state.messages.append({"role": "user", "content": user_text})
+
+# Historia
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
+
+# Vastaus (chat: API tai paikallinen fallback)
+if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+    query = st.session_state.messages[-1]["content"]
+    context = build_context(query)
+    sys_prompt = (
+        PERSONA
+        + ("\n\nKonteksti (tiivistä, lainaa maltilla):\n" + context if context else "")
+        + "\n\nPikatyökalut:\n"
+        + tool_bullets_ai_opportunities()
+        + "\n\nGovernance-checklist:\n"
+        + tool_ai_governance_checklist()
+    )
+
+    if not client:
+        answer = local_demo_response(query, context)
+    else:
+        resp = safe_chat_completion(
+            client=client,
+            model=model,
+            messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages,
+            temperature=0.3,
+        )
+        if resp is None:
+            answer = local_demo_response(query, context)
+        else:
+            answer = resp.choices[0].message.content
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    with st.chat_message("assistant"):
+        st.markdown(answer)
+
+# Footer
+st.markdown("---")
+st.subheader("Mitä tämä demo näyttää")
+st.markdown(
+    "- Keskusteltava agentti, joka tuntee työpaikkailmoituksen.\n"
+    "- RAG-haku job adista ja (valinnaisesti) ladatuista dokumenteista.\n"
+    "- Valmiit AI-ideat ja AI governance -tarkistuslista.\n"
+    "- Turvalliset fallbackit, ettei appi kaadu vaikka embeddings- tai chat-quota loppuisi."
+)
