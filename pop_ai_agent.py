@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä + hero-avatar
+Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä + hero-avatar + KPI- ja governance-visut + CV-koukku
 - Vain chatti (ei RAGia eikä tiedostonlatausta)
 - Kaikkien käyttäjien keskustelut talteen SQLiteen palvelinpuolella (ilman erillistä kysymistä)
 - Admin-näkymä salasanalla: listaus, haku, JSON/CSV-lataus
@@ -10,6 +10,7 @@ Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä + her
 - Malli: gpt-4o-mini (nopea ja edullinen), ei UI-valintaa
 - Sivupalkki on oletuksena piilotettu (collapsed)
 - Yläreunassa keskitetty hero-kortti (avatar + nimi + tagline)
+- Wow-efektit: KPI-taulukko, governance-kaavio, CV-koukku vastauksen alussa
 """
 
 import os
@@ -20,6 +21,7 @@ import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
+import pandas as pd
 import streamlit as st
 from openai import OpenAI
 
@@ -175,21 +177,24 @@ def get_client() -> Optional[OpenAI]:
 # Avatar-kuvan lähde (secrets)
 # -------------------------------
 def get_avatar_url() -> str:
+    # 1) suora URL secretsistä
     direct = ""
     try:
-        direct = st.secrets.get("https://avatars.githubusercontent.com/u/224648509?v=4", "")
+        direct = st.secrets.get("GITHUB_AVATAR_URL", "")
     except Exception:
         pass
     if direct:
         return direct
+    # 2) username → github avatar
     user = ""
     try:
-        user = st.secrets.get("muistio", "")
+        user = st.secrets.get("GITHUB_USERNAME", "")
     except Exception:
         pass
     if user:
         return f"https://github.com/{user}.png?size=240"
-    return "https://avatars.githubusercontent.com/u/224648509?v=4"
+    # 3) fallback placeholder
+    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
 
 # -------------------------------
 # SQLite apurit
@@ -288,8 +293,6 @@ def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
 # -------------------------------
 def local_demo_response(user_query: str) -> str:
     plan = (
-        "Älä puhu pankkialasta tai POP pankin työhakemuksesta ellei siitä erikseen kysytä tai asiaa mainita"
-        "Pyri vastaamaan ytimekkäästi"
         "### 30/60/90 päivän suunnitelma\n"
         "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
         "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
@@ -306,6 +309,86 @@ def local_demo_response(user_query: str) -> str:
         f"{plan}"
         "Pyydä syventämään jotakin osa-aluetta tai antamaan konkreettiset KPI:t ja hyväksymiskriteerit."
     )
+
+# -------------------------------
+# KPI-taulukko ja governance-kaavio (wow-efekti #3)
+# -------------------------------
+def render_kpi_table():
+    data = [
+        ("Asiakaspalvelu Copilot", "TTFR (time-to-first-response)", "90 s", "≤ 30 s", "LLM-luonnosvastaukset + tietopohja"),
+        ("Asiakaspalvelu Copilot", "CSAT", "3.9 / 5", "≥ 4.3 / 5", "sävy & faktat kohdilleen"),
+        ("Sisäinen RAG-haku", "Osumatarkkuus (nDCG@5)", "—", "≥ 0.85", "prosessidokit lähteiksi"),
+        ("Fraud score", "Precision @ k", "—", "+15–25 %", "rules + ML, SHAP-seuranta"),
+        ("AML triage", "Käsittelyaika / alert", "—", "−30–50 %", "LLM tiivistää & ehdottaa"),
+        ("Luotonanto", "PD AUC", "—", "≥ 0.78", "selitettävyys-paneeli"),
+    ]
+    df = pd.DataFrame(data, columns=["Alue", "Mittari", "Nykytila", "Tavoite", "Huomio"])
+    st.subheader("Ehdotetut KPI:t")
+    st.dataframe(df, use_container_width=True)
+
+def render_governance_flow():
+    dot = r"""
+    digraph G {
+      rankdir=LR;
+      node [shape=box, style="rounded,filled", color="#444444", fillcolor="#f5f5f5"];
+      edge [color="#888888"];
+      A [label="Käyttötapaus & riskiluokitus\n(EU AI Act)"];
+      B [label="Data governance\n(omistajuus • laatu • DPIA)"];
+      C [label="Mallikehitys\n(MLOps/LLMOps)"];
+      D [label="Validoi & hyväksy\n(kriteerit, fairness, selitettävyys)"];
+      E [label="Pilotointi\n(SLA/KPI seuranta)"];
+      F [label="Tuotanto\n(drift, kustannus, audit trail)"];
+      A -> B -> C -> D -> E -> F;
+    }
+    """
+    st.subheader("AI governance – prosessi")
+    st.graphviz_chart(dot, use_container_width=True)
+
+def detect_intents(text: str) -> set[str]:
+    t = text.lower()
+    intents = set()
+    if any(w in t for w in ["kpi", "mittari", "sla", "ttfr", "tavoite", "tavoitteet"]):
+        intents.add("kpi")
+    if any(w in t for w in ["governance", "ai act", "risk", "selitettävyys", "audit", "valvonta"]):
+        intents.add("gov")
+    return intents
+
+# -------------------------------
+# CV-koukku (wow-efekti #5)
+# -------------------------------
+CV_HOOKS = {
+    ("hubspot", "salesforce", "crm"): [
+        "Olen rakentanut ja ylläpitänyt HubSpot–Salesforce-integraatioita, joten CRM-prosessit ovat tuttua maastoa.",
+        "Kohdennuksen ja ICP-segmentoinnin tein Goforella myynnin ja markkinoinnin yhteiseksi kieleksi."
+    ],
+    ("rag", "tietopohja", "tietohaku", "ohje", "dokumentaatio"): [
+        "Olen tehnyt sisäisiä RAG-konsepteja: kuratoidut ohje- ja prosessilähteet pitävät vastaukset faktoissa."
+    ],
+    ("fraud", "aml", "rahanpesu", "riskimalli"): [
+        "Sääntöpohjaisen ja ML-pohjaisen riskipisteytyksen yhdistäminen on tuttua – selitettävyys (SHAP) mukaan alusta asti."
+    ],
+    ("governance", "ai act", "eettinen", "selitettävyys"): [
+        "Tuon AI governance -periaatteet käytäntöön: riskiluokitus, hyväksymiskriteerit ja audit trail sisäänrakennettuna."
+    ],
+    ("copilot", "asiakaspalvelu", "service", "sla"): [
+        "Asiakaspalvelun Copilotissa fokusoin TTFR-parannukseen ja sävy/fakta-laatuun – mittarit ja hyväksymiskriteerit ensin."
+    ],
+    ("tapahtuma", "event", "international", "messu"): [
+        "Airbus-tausta ja kansainvälinen tapahtumatuotanto auttavat viemään AI-pilotit myös kentälle esiteltäviksi."
+    ],
+    ("kansainvälinen", "international", "culture"): [
+        "Olen työskennellyt Suomessa, Saksassa ja Kiinassa – monikulttuurinen yhteistyö sujuu."
+    ],
+}
+def build_cv_hook(user_query: str) -> str:
+    q = user_query.lower()
+    picked: list[str] = []
+    for keys, lines in CV_HOOKS.items():
+        if any(k in q for k in keys):
+            picked.extend(lines[:1])
+    if not picked:
+        picked = ["Kytken AI-ratkaisut bisnesmittareihin – suunnitelmasta tuotantoon ja käyttäjäkoulutukseen."]
+    return " ".join(picked[:2])
 
 # -------------------------------
 # Chat-vastaus OpenAI:lla
@@ -359,7 +442,8 @@ st.markdown(
 <div class="hero">
   <img src="{avatar_url}" alt="Henry avatar" />
   <h1>Tutustu Henryn CV:seen</h1>
-  <p>Data ja AI vetoista markkinointia, CRM-kehitystä ja käytännön duunia kädet savessa. Mitä haluaisit tietää? Kysy pois! ✨</p>
+  <p>Data- ja AI-vetoista markkinointia, CRM-kehitystä ja käytännön tekemistä. Kysy mitä vain! ✨</p>
+  <div class="footer-note">Tämä demo tallentaa keskustelut anonyymisti palvelimen SQLite-tietokantaan.</div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -467,8 +551,19 @@ if user_msg:
     else:
         reply_text = local_demo_response(user_msg)
 
+    # Lisää CV-koukku vastauksen alkuun
+    hook = build_cv_hook(user_msg)
+    reply_text = f"_{hook}_\n\n{reply_text}"
+
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
     save_message(st.session_state.conversation_id, "assistant", reply_text)
 
     with st.chat_message("assistant"):
         st.markdown(reply_text)
+
+        # Intent-pohjaiset visuaalit (KPI-taulukko ja governance-kaavio)
+        intents = detect_intents(user_msg)
+        if "kpi" in intents:
+            render_kpi_table()
+        if "gov" in intents:
+            render_governance_flow()
