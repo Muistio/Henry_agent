@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 """
 Pop AI Advisor – Personal Agent Demo (Streamlit)
-------------------------------------------------
-Kevyt Streamlit-sovellus, jolla POP Pankin rekry voi jutella AI-agentin kanssa.
-Näyttää:
-  • Persona + keskustelumuisti
-  • RAG työpaikkailmoituksesta + (valinnaisesti) ladatuista tiedostoista
-  • Pienet työkalut (AI-ideat, AI governance -checklist)
 
-Käyttö:
-1) pip install -U streamlit openai pypdf numpy tiktoken
-2) Lisää avain:
-   - paikallisesti:   export OPENAI_API_KEY="sk-..."
-   - TAI Streamlit Cloud Secrets: OPENAI_API_KEY = "sk-..."
-   - TAI sivupalkin kenttään (ei tallennu koodiin)
-3) streamlit run pop_ai_agent.py
+Kevyt Streamlit-sovellus, jolla POP Pankin rekry voi jutella AI-agentin kanssa.
+- Persona + keskustelumuisti
+- RAG työpaikkailmoituksesta + (valinnaisesti) ladatuista tiedostoista
+- Pienet työkalut (AI-ideat, governance-checklist)
+- Turvalliset fallbackit (ei kaadu vaikka API ei olisi käytettävissä)
 """
 
 import io
@@ -62,11 +54,11 @@ Odotukset:
 """
 
 # Persona / system-prompt lyhyenä
-PERSONA = """
-Sinä olet POP Pankin AI Advisor -roolin tukena toimiva AI-agentti.
-Vastaa suomeksi (ellei käyttäjä vaihda kieltä) selkeästi, konkreettisesti ja ehdota askelmerkkejä.
-Korosta mitattavia hyötyjä, riskejä ja governance-käytäntöjä. Vältä hypeä.
-"""
+PERSONA = (
+    "Sinä olet POP Pankin AI Advisor -roolin tukena toimiva AI-agentti. "
+    "Vastaa suomeksi (ellei käyttäjä vaihda kieltä) selkeästi, konkreettisesti ja ehdota askelmerkkejä. "
+    "Korosta mitattavia hyötyjä, riskejä ja governance-käytäntöjä. Vältä hypeä."
+)
 
 # -------------------------------
 # In-memory "vektorikauppa"
@@ -120,12 +112,12 @@ class MiniStore:
         return [c for _, c in scores[:k]]
 
 # -------------------------------
-# OpenAI-avain: hae kaikista paikoista
+# OpenAI-apurit (avaimen haku)
 # -------------------------------
-_client_cache = {}
+_client_cache: Dict[str, OpenAI] = {}
 
 def _get_api_key_from_anywhere() -> str:
-    # 1) Sidebarin syöte (alla tallennetaan session stateen)
+    # 1) Sidebarin syöte (tallennamme sen session stateen alempana)
     ki = st.session_state.get("OPENAI_API_KEY_INPUT", "")
     # 2) Ympäristömuuttuja
     if not ki:
@@ -138,7 +130,7 @@ def _get_api_key_from_anywhere() -> str:
             ki = ""
     return ki
 
-def get_client(api_key: str | None = None) -> OpenAI:
+def get_client(api_key: Optional[str] = None) -> OpenAI:
     key = api_key or _get_api_key_from_anywhere()
     if not key:
         raise RuntimeError("OPENAI_API_KEY ei ole asetettu. Lisää se sivupalkissa, ympäristömuuttujana tai Streamlit Secretsiin.")
@@ -164,7 +156,9 @@ def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
 
 def split_into_chunks(text: str, max_chars: int) -> List[str]:
     text = " ".join(text.split())
-    out, buf, count = [], [], 0
+    out: List[str] = []
+    buf: List[str] = []
+    count = 0
     for token in text.split(" "):
         if count + len(token) + 1 > max_chars:
             out.append(" ".join(buf))
@@ -178,7 +172,7 @@ def split_into_chunks(text: str, max_chars: int) -> List[str]:
 
 def read_pdf(file: io.BytesIO) -> str:
     reader = PdfReader(file)
-    parts = []
+    parts: List[str] = []
     for page in reader.pages:
         try:
             parts.append(page.extract_text() or "")
@@ -217,9 +211,12 @@ def local_demo_response(query: str, context: str) -> str:
     gov = tool_ai_governance_checklist()
     plan = (
         "### 30/60/90 päivän suunnitelma\n"
-        "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
-        "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
-        "- **90 pv**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, tuotantoprosessi (MLOps/LLMOps).\n"
+        "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), "
+        "governance-periaatteet ja hyväksymiskriteerit.\n"
+        "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), "
+        "dokumentaatio ja koulutus.\n"
+        "- **90 pv**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, "
+        "tuotantoprosessi (MLOps/LLMOps).\n"
     )
     ctx_note = f"> **Konteksti (poimintoja):**\n{context[:1000]}\n\n" if context else ""
     return (
@@ -242,6 +239,7 @@ def safe_chat_completion(client: OpenAI, model: str, messages: list, temperature
             temperature=temperature,
         )
     except Exception:
+        # Älä kaada sovellusta, kerro mitä tapahtui ja palauta None
         st.warning("OpenAI-chat ei ole käytettävissä (avain/kiintiö/verkko). Näytetään paikallinen demovastaus.")
         return None
 
@@ -254,26 +252,31 @@ st.title(APP_NAME)
 with st.sidebar:
     st.subheader("Asetukset")
     api_key_input = st.text_input("OPENAI_API_KEY", value=os.getenv("OPENAI_API_KEY", ""), type="password")
-    st.session_state["OPENAI_API_KEY_INPUT"] = api_key_input  # talteen avainhakuun
+    st.session_state["OPENAI_API_KEY_INPUT"] = api_key_input  # talteen automaattista hakua varten
+
     model = st.text_input("Chat-malli", value=DEFAULT_MODEL)
-    st.caption("Vinkki: Streamlit Cloudissa lisää avain Settings → Secrets.")
+    st.caption("Vinkki: Streamlit Cloudissa lisää avain Settings → Secrets (OPENAI_API_KEY).")
+
+    # Näytä löytyikö avain jostain (ilman paljastamista)
     key_detected = "✅ avain löytyi" if (_get_api_key_from_anywhere()) else "❌ avain puuttuu"
     st.info(f"Avain: {key_detected}")
+
     st.markdown("---")
     st.caption("Lisää dokumentteja (PDF/TXT) — indeksoidaan paikallisesti.")
     up_files = st.file_uploader("Lisää dokumentteja", type=["pdf", "txt"], accept_multiple_files=True)
     if st.button("Tyhjennä keskustelu"):
         st.session_state.pop("messages", None)
 
+# Client (jos avain on saatavilla)
 client: Optional[OpenAI] = None
 try:
-    # Luo asiakas jos avain löytyy jostain
-    candidate_key = _get_api_key_from_anywhere()
-    if candidate_key:
-        client = get_client(candidate_key)
+    key_try = _get_api_key_from_anywhere()
+    if key_try:
+        client = get_client(key_try)
 except Exception as e:
     st.error(str(e))
 
+# Store ja bootstrap
 if "store" not in st.session_state:
     st.session_state.store = MiniStore()
 if "bootstrapped" not in st.session_state:
@@ -308,11 +311,11 @@ if "messages" not in st.session_state:
 def build_context(query: str) -> str:
     emb_fn = (lambda txt: embed_text(txt, client)) if client else None
     hits = store.search(query, emb_fn, k=5)
-    ctx = []
+    ctx_parts: List[str] = []
     for h in hits:
         tag = h.meta.get("source", "doc")
-        ctx.append(f"[Lähde: {tag}]\n{h.text}")
-    return "\n\n".join(ctx)
+        ctx_parts.append(f"[Lähde: {tag}]\n{h.text}")
+    return "\n\n".join(ctx_parts)
 
 user_text = st.chat_input("Kysy roolista, demoista tai projekteista…")
 if user_text:
@@ -333,4 +336,33 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] == "user"
         + "\n\nPikatyökalut:\n"
         + tool_bullets_ai_opportunities()
         + "\n\nGovernance-checklist:\n"
-       
+        + tool_ai_governance_checklist()
+    )
+
+    if client is None:
+        answer = local_demo_response(query, context)
+    else:
+        resp = safe_chat_completion(
+            client=client,
+            model=model,
+            messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages,
+            temperature=0.3,
+        )
+        if resp is None:
+            answer = local_demo_response(query, context)
+        else:
+            answer = resp.choices[0].message.content
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    with st.chat_message("assistant"):
+        st.markdown(answer)
+
+# Footer
+st.markdown("---")
+st.subheader("Mitä tämä demo näyttää")
+st.markdown(
+    "- Keskusteltava agentti, joka tuntee työpaikkailmoituksen.\n"
+    "- RAG-haku job adista ja (valinnaisesti) ladatuista dokumenteista.\n"
+    "- Valmiit AI-ideat ja AI governance -tarkistuslista.\n"
+    "- Turvalliset fallbackit, ettei appi kaadu vaikka embeddings- tai chat-quota loppuisi."
+)
