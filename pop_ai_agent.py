@@ -49,140 +49,17 @@ APP_NAME = "POP AI Advisor – Henry Agent"
 # The job ad text (Finnish) – pasted here to ground the agent
 ABOUT_ME = """
 ABOUT ME
-Data-driven marketing strategist with 10+ years of experience turning data into
-actionable business. Background spans B2B consulting, global tech and retail
-entrepreneurship. Passionate investor.
-Lived in Finland Germany and China.
-WORK EXPERIENCE
-Gofore Oyj Helsinki, Finland
-Marketing strategist
-01/11/2020 – Current
-• Designed and executed data-driven marketing strategies for clients,
-optimizing campaigns via Looker Studio dashboards
-• Partnered with sales and consultant teams to align targeting strategies
-with market and audience insights
-• Brand strategies for mergers and acquisitions (4 acquisitions in the
-past years)
-• Marketing automation and account based marketing strategy
-• Hubspot & Salesforce integration and administration
-Gofore Plc is a digital transformation consultancy with more than 1500
-impact-driven employees across Finland, Germany, Spain, and Estonia with a
-revenue of more than 180M€.
-Airbus Helsinki, Finland
-Marketing manager
-01/03/2018 – 01/11/2020
-At Airbus I used to work with the following topics:
-• Worked with technical teams and sales to align messaging with
-strategic business goals
-• Applied data analysis to evaluate European-LATAM wide campaign
-performance
-• Event management
-• Designing the mission-critical Internet of Things concept
-• Website projects e.g. Airbusfinland.com
-Airbus Defence and Space is a division of Airbus responsible for defence and
-aerospace products and services.
-Airbus pioneers sustainable aerospace for a safe and united world. In
-commercial aircraft, Airbus oﬀers modern and fuel-eﬃcient airliners and
-associated services. Airbus is also a European leader in defence and security
-and one of the world's leading space businesses.
-Rohje Oy
-Co-founder - Side hustle
-2018 – Current
-Co-founded Rohje, a Finnish watch brand with international sales, driving
-growth through data-led marketing and Shopify e-commerce optimisation.
-Managed digital ad campaigns (Google Ads, social media), tracking KPIs
-including CAC and ROAS.
-Combined creative storytelling with measurable performance metrics to
-sustain growth in competitive markets.
-Rohje has gained the pole position in Finnish Google searches for “Finnish
-watch” and for example Zalando.com and the largest department store in
-Finland, Stockmann has taken it on it's catalogue.
-Telia Helsinki, Finland
-Marketing specialist
-01/04/2017 – 09/2017
-Substitute role for maternity leave over the summer 2017.
-• Telia’s nationwide B2B sales network’s marketing development
-• Telia brand compatible B2B event management
-• Telia Finland’s B2B-Social media management
-Digi Electronics Ltd Shenzhen, China
-Marketing assistant
-01/01/2017 – 01/04/2017
-3 months marketing internship in Shenzhen, China.
-• Marketing planning and developing: Adwords, Analytics, Smartly
-• Digital customer service: Liveagent
-“Henry’s contribution to our company exceeded our expectations. He was a liked colleague amongst all team members.
-He was selected as the employee of the quarter within his team. We are thankful to Henry’s proactive approach to
-developing our shop front and marketing activities with a lot of improvement ideas.” Ville Majanen – Digi Electronics
-Ltd.
-Jyväskylä entrepreneurship Society
-Chairman of the board
-2014 – 2016
-For 2015 I was promoted to be the chairman of the board. As a president and chairman my responsibility was to
-coordinate the board and keep the society active and growing. This is a position where I got familiar with Finnish
-start-up scene and the people behind it. We invented Spotlight event (start-up event in Jyväskylä which is still
-running) and I got to known a lot of people who run main stakeholders in Finnish start-up ecosystem.
-Invivian (Own company) Helsinki, Finland
-Investor
-2023 – Current
-Python investment analytics platform – Built automated scripts for market data collection, analysis, and portfolio
-tracking, improving decision-making speed and accuracy.
-Keski-Suomen Pelastuslaitos / Middle Finland Rescue center Muurame, Finland
-Firefighter
-2010 – 01/01/2017
-Volunteer firefighter for seven years in Muurame.
-This experience brought me to the world of critical communications. We had Airbus TETRA-radios in operational
-use.
-Courses:
-• Hazardious materials
-• Driving
-• First aid courses
-• Firefighting courses
-• Marine rescuing
-• etc
-EDUCATION AND TRAINING
-01/08/2019 – CURRENT Jyväskylä, Finland
-Master of Science in Economics and Business Administration University of Jyväskylä
-Address Seminaarinkatu 15, 40100, Jyväskylä, Finland Website https://www.jyu.fi/jsbe/en
-01/08/2015 – 01/08/2018 Jyväskylä, Finland
-Bachelor of Business Administration Jyväskylä University of Applied Sciences
-Address Rajakatu 35, 40200, Jyväskylä, Finland Website https://www.jamk.fi/
-2013 – 2015 Jyväskylä
-Energy engineering Jyväskylä University of Applied Sciences
-Address Rajakatu 35, 40200, Jyväskylä Website https://www.jamk.fi/
-2012 – 2013
-Military service in as F/A-18 Hornet mechanic Finnish Air force
-LANGUAGE SKILLS
-MOTHER TONGUE(S): Finnish
-Other language(s):
-English
-Listening C1
-Spoken production C1
-Reading C1
-Spoken interaction C1
-Writing C1
-German
-Listening B1
-Spoken production B1
-Reading B1
-Spoken interaction B1
-Writing B1
-Swedish
-Listening A1
-Reading A1
-Levels: A1 and A2: Basic user; B1 and B2: Independent user; C1 and C2: Proficient user
-VOLUNTEERING
-2021
-United Nations department of safety and security - BSAFE
-United Nations department of safety and security - BSAFE Course
-Trainer for "first aid fire-extinguishing" - courses
-Finnish: Alkusammutuskouluttaja
-Kuopio, Finland
-Civil crisis management courses: USAR / Camp PDT coursesCivil crisis management courses completed:
-• Information Management
-• USAR PDT
-• Camp PDT
-• Basic training course
-• United Nations - Basic security in the field courses 1 and 2
+Henry from Finland with a background in marketing strategy at Gofore.
+Experienced CRM admin (HubSpot, Salesforce), data & analytics enthusiast.
+Built Python-based AI and analytics tools (e.g., automated trading on IBKR API),
+connecting rule-based systems with ML, producing production-ready code.
+
+Strengths: Identifying business value of AI, taking ideas to production,
+training users, building processes. Familiar with Google Cloud data/AI,
+Microsoft Copilot/Graph integrations, AI governance principles, and EU AI Act
+perspectives in practical project work.
+- Marketing strategy at Gofore, CRM admin (HubSpot, Salesforce)
+- Data & analytics enthusiast, built Python-based AI tools
 """
 
 JOB_TEXT = """
