@@ -443,7 +443,6 @@ st.markdown(
   <img src="{avatar_url}" alt="Henry avatar" />
   <h1>Tutustu Henryn CV:seen</h1>
   <p>Data- ja AI-vetoista markkinointia, CRM-kehitystä ja käytännön tekemistä. Kysy mitä vain! ✨</p>
-  <div class="footer-note">Tämä demo tallentaa keskustelut anonyymisti palvelimen SQLite-tietokantaan.</div>
 </div>
 """,
     unsafe_allow_html=True,
