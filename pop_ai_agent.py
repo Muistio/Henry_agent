@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä
+Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä + hero-avatar
 - Vain chatti (ei RAGia eikä tiedostonlatausta)
 - Kaikkien käyttäjien keskustelut talteen SQLiteen palvelinpuolella (ilman erillistä kysymistä)
 - Admin-näkymä salasanalla: listaus, haku, JSON/CSV-lataus
 - API-avain vain palvelimella (secrets/env), ei koskaan UI:ssa
 - Malli: gpt-4o-mini (nopea ja edullinen), ei UI-valintaa
 - Sivupalkki on oletuksena piilotettu (collapsed)
+- Yläreunassa keskitetty hero-kortti (avatar + nimi + tagline)
 """
 
 import os
@@ -45,6 +46,14 @@ ABOUT_ME = """
 Nimi: Henry
 Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
 Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista. Juo kahvin mustana.
+
+- Data analytics and management
+- Hubspot & Salesforce CRM
+- Business development
+- Event organizing
+- Start-up background spiced up with corporate experience
+- I find it rewarding to work amidst diverse international cultures
+- My three childhood buddies and I run our own watch brand, Rohje (rohje.com). #Shopify
 
 Työkokemus:
 - Gofore Oyj (2020–): Marketing strategist
@@ -111,9 +120,9 @@ PERSONA = (
     "Puhun minä-muodossa luonnollisesti ja napakasti — bisneslähtöisesti, mutta sopivalla huumorilla. "
     "Annan konkreettisia askelmerkkejä niistä kysyttäessä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act) mikäli kysymys liittyy tekoälyyn. "
     "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän yllä olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
-    "Olen asiantuntija markkinoinnissa ja data-analytiikassa"
-    "Projekteista kysyttäessä kerro CRM-integraatiosta, myynnin ja markkinoinnin datan yhdistämisestä tai kansainvälisestä tapahtumatuotannosta"
-    "Työn ulkopuolelta voin kertoa juovani kahvin mustana"
+    "Olen asiantuntija markkinoinnissa ja data-analytiikassa. "
+    "Projekteista kysyttäessä kerron CRM-integraatiosta, myynnin ja markkinoinnin datan yhdistämisestä tai kansainvälisestä tapahtumatuotannosta. "
+    "Työn ulkopuolelta voin kertoa juovani kahvin mustana."
 )
 
 # -------------------------------
@@ -159,6 +168,26 @@ def get_client() -> Optional[OpenAI]:
         return OpenAI(api_key=key, timeout=30.0)
     except Exception:
         return None
+
+# -------------------------------
+# Avatar-kuvan lähde (secrets)
+# -------------------------------
+def get_avatar_url() -> str:
+    direct = ""
+    try:
+        direct = st.secrets.get("GITHUB_AVATAR_URL", "")
+    except Exception:
+        pass
+    if direct:
+        return direct
+    user = ""
+    try:
+        user = st.secrets.get("GITHUB_USERNAME", "")
+    except Exception:
+        pass
+    if user:
+        return f"https://github.com/{user}.png?size=240"
+    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
 
 # -------------------------------
 # SQLite apurit
@@ -288,9 +317,52 @@ def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
 # -------------------------------
 # UI
 # -------------------------------
-st.set_page_config(page_title=APP_NAME, page_icon="🤖", initial_sidebar_state="collapsed")
-st.title(APP_NAME)
-st.caption("Keskustele 'Henry'-agentin kanssa ja tutustu minuun")
+st.set_page_config(
+    page_title=APP_NAME,
+    page_icon="🤖",
+    initial_sidebar_state="collapsed",
+    layout="wide",
+)
+
+# Kevyt CSS viimeistelyyn (kortit, avatar, typografia)
+st.markdown("""
+<style>
+/* Keskitetty hero-kortti */
+.hero {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 14px; padding: 28px; margin: 6px 0 14px 0;
+  border-radius: 18px; border: 1px solid rgba(120,120,120,0.2);
+  background: linear-gradient(180deg, rgba(150,150,150,0.06), rgba(120,120,120,0.04));
+}
+.hero img {
+  width: 120px; height: 120px; border-radius: 50%;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.15); object-fit: cover;
+}
+.hero h1 {
+  font-size: 1.6rem; margin: 0;
+}
+.hero p {
+  margin: 0; opacity: 0.85;
+}
+.footer-note { opacity:0.7; font-size: 0.9rem; margin-top: 8px;}
+</style>
+""", unsafe_allow_html=True)
+
+# Hero header
+avatar_url = get_avatar_url()
+st.markdown(
+    f"""
+<div class="hero">
+  <img src="{avatar_url}" alt="Henry avatar" />
+  <h1>Tutustu Henryn CV:seen</h1>
+  <p>AI & data -vetoista markkinointia, CRM-arkkitehtuuria ja käytännön kehitystä – kysy rohkeasti! ✨</p>
+  <div class="footer-note">Tämä demo tallentaa keskustelut anonyymisti palvelinpuolen SQLite-tietokantaan.</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+st.caption("Keskustele 'Henry'-agentin kanssa ja tutustu minuun.")
 
 # 1) DB init
 init_db()
@@ -307,7 +379,6 @@ if "conversation_id" not in st.session_state:
 # 4) Sivupalkki (oletus collapsed): status + admin
 with st.sidebar:
     st.subheader("Status")
-    # API-yhteyden tila
     if get_client():
         st.info("Henry-agentti linjoilla: ✅")
     else:
@@ -315,7 +386,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("Asetukset")
-    admin_pw = st.text_input("Admin-salasana", type="password",)
+    admin_pw = st.text_input("Admin-salasana", type="password")
     admin_ok = (admin_pw and st.secrets.get("ADMIN_PASSWORD", "") == admin_pw)
 
     if admin_ok:
