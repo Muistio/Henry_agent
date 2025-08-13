@@ -198,7 +198,7 @@ def try_chat_with_fallbacks(client: OpenAI, base_model: str, messages: List[Dict
 # ===== UI =====
 st.set_page_config(page_title=APP_NAME, page_icon="🤖")
 st.title(APP_NAME)
-st.caption("Keskustele 'Henry'-agentin kanssa tästä AI Advisor -roolista.")
+st.caption("Keskustele 'Henry'-agentin kanssa tutustuaksesi paremmin")
 
 with st.sidebar:
     st.subheader("Asetukset")
