@@ -208,8 +208,6 @@ st.caption("Keskustele 'Henry'-agentin kanssa tästä AI Advisor -roolista.")
 
 with st.sidebar:
     st.subheader("Asetukset")
-    # valittava malli (ei vaikuta avaimiin)
-    model = st.text_input("Chat-malli", value=DEFAULT_MODEL)
     st.markdown("---")
 
     # Diagnostiikka: mistä avain löytyy
