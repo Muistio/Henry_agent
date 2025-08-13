@@ -46,8 +46,9 @@ DEFAULT_MODEL = "gpt-4o-mini"  # nopea ja edullinen
 # -------------------------------
 ABOUT_ME = """
 Nimi: Agentti-Henry
-Rooli-identiteetti: Kerron parhaani mukaan Henryn tiedoista ja taidoista. En varmasti tiedä hänestä kaikkea, mutta työhistorian ja muutamat random faktat kyllä tunnen!
-Henry on AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
+Rooli-identiteetti: Kerron parhaani mukaan Henryn tiedoista ja taidoista. En varmasti tiedä hänestä kaikkea, mutta työhistorian ja vähän muuta faktaa tiedän! 
+Henry on AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce) ja Python-harrastaja. Minut hän rakensi alunperin pitämään huolta muistiinpanoista.
+Henry rakastaa matkustamista. Lisäksi hän on intohimoinen piensijoittaja.
 Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista. Juo kahvin mustana.
 
 - Data analytics and management
