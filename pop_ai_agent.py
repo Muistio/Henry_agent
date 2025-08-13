@@ -6,11 +6,14 @@ Kevyt Streamlit-sovellus, jolla POP Pankin rekry voi jutella AI-agentin kanssa.
 Näyttää:
   • Persona + keskustelumuisti
   • RAG työpaikkailmoituksesta + (valinnaisesti) ladatuista tiedostoista
-  • Pienet työkalut (AI-ideat, roadmap-bulletit, AI governance -checklist)
+  • Pienet työkalut (AI-ideat, AI governance -checklist)
 
-Pika-aloitus:
-1) pip install -U -r requirements.txt
-2) export OPENAI_API_KEY=...  (tai aseta sivupalkissa)
+Käyttö:
+1) pip install -U streamlit openai pypdf numpy tiktoken
+2) Lisää avain:
+   - paikallisesti:   export OPENAI_API_KEY="sk-..."
+   - TAI Streamlit Cloud Secrets: OPENAI_API_KEY = "sk-..."
+   - TAI sivupalkin kenttään (ei tallennu koodiin)
 3) streamlit run pop_ai_agent.py
 """
 
@@ -117,14 +120,28 @@ class MiniStore:
         return [c for _, c in scores[:k]]
 
 # -------------------------------
-# OpenAI-apurit
+# OpenAI-avain: hae kaikista paikoista
 # -------------------------------
 _client_cache = {}
 
+def _get_api_key_from_anywhere() -> str:
+    # 1) Sidebarin syöte (alla tallennetaan session stateen)
+    ki = st.session_state.get("OPENAI_API_KEY_INPUT", "")
+    # 2) Ympäristömuuttuja
+    if not ki:
+        ki = os.getenv("OPENAI_API_KEY", "")
+    # 3) Streamlit Secrets (Cloud)
+    if not ki:
+        try:
+            ki = st.secrets.get("OPENAI_API_KEY", "")
+        except Exception:
+            ki = ""
+    return ki
+
 def get_client(api_key: str | None = None) -> OpenAI:
-    key = api_key or os.getenv("OPENAI_API_KEY", "")
+    key = api_key or _get_api_key_from_anywhere()
     if not key:
-        raise RuntimeError("OPENAI_API_KEY ei ole asetettu. Lisää se sivupalkissa tai ympäristömuuttujana.")
+        raise RuntimeError("OPENAI_API_KEY ei ole asetettu. Lisää se sivupalkissa, ympäristömuuttujana tai Streamlit Secretsiin.")
     if key in _client_cache:
         return _client_cache[key]
     cli = OpenAI(api_key=key)
@@ -225,7 +242,6 @@ def safe_chat_completion(client: OpenAI, model: str, messages: list, temperature
             temperature=temperature,
         )
     except Exception:
-        # Älä kaada sovellusta, kerro mitä tapahtui ja palauta None
         st.warning("OpenAI-chat ei ole käytettävissä (avain/kiintiö/verkko). Näytetään paikallinen demovastaus.")
         return None
 
@@ -237,8 +253,12 @@ st.title(APP_NAME)
 
 with st.sidebar:
     st.subheader("Asetukset")
-    api_key = st.text_input("OPENAI_API_KEY", value=os.getenv("OPENAI_API_KEY", ""), type="password")
+    api_key_input = st.text_input("OPENAI_API_KEY", value=os.getenv("OPENAI_API_KEY", ""), type="password")
+    st.session_state["OPENAI_API_KEY_INPUT"] = api_key_input  # talteen avainhakuun
     model = st.text_input("Chat-malli", value=DEFAULT_MODEL)
+    st.caption("Vinkki: Streamlit Cloudissa lisää avain Settings → Secrets.")
+    key_detected = "✅ avain löytyi" if (_get_api_key_from_anywhere()) else "❌ avain puuttuu"
+    st.info(f"Avain: {key_detected}")
     st.markdown("---")
     st.caption("Lisää dokumentteja (PDF/TXT) — indeksoidaan paikallisesti.")
     up_files = st.file_uploader("Lisää dokumentteja", type=["pdf", "txt"], accept_multiple_files=True)
@@ -246,11 +266,13 @@ with st.sidebar:
         st.session_state.pop("messages", None)
 
 client: Optional[OpenAI] = None
-if api_key:
-    try:
-        client = get_client(api_key)
-    except Exception as e:
-        st.error(str(e))
+try:
+    # Luo asiakas jos avain löytyy jostain
+    candidate_key = _get_api_key_from_anywhere()
+    if candidate_key:
+        client = get_client(candidate_key)
+except Exception as e:
+    st.error(str(e))
 
 if "store" not in st.session_state:
     st.session_state.store = MiniStore()
@@ -311,33 +333,4 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] == "user"
         + "\n\nPikatyökalut:\n"
         + tool_bullets_ai_opportunities()
         + "\n\nGovernance-checklist:\n"
-        + tool_ai_governance_checklist()
-    )
-
-    if not client:
-        answer = local_demo_response(query, context)
-    else:
-        resp = safe_chat_completion(
-            client=client,
-            model=model,
-            messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages,
-            temperature=0.3,
-        )
-        if resp is None:
-            answer = local_demo_response(query, context)
-        else:
-            answer = resp.choices[0].message.content
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
-    with st.chat_message("assistant"):
-        st.markdown(answer)
-
-# Footer
-st.markdown("---")
-st.subheader("Mitä tämä demo näyttää")
-st.markdown(
-    "- Keskusteltava agentti, joka tuntee työpaikkailmoituksen.\n"
-    "- RAG-haku job adista ja (valinnaisesti) ladatuista dokumenteista.\n"
-    "- Valmiit AI-ideat ja AI governance -tarkistuslista.\n"
-    "- Turvalliset fallbackit, ettei appi kaadu vaikka embeddings- tai chat-quota loppuisi."
-)
+       
