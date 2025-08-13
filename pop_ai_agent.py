@@ -17,6 +17,16 @@ from typing import List, Dict, Any, Optional
 import streamlit as st
 from openai import OpenAI
 
+# Valitse turvallinen kirjoituspolku: Cloudissa /mount/data on kirjoituskelpoinen
+if os.path.exists("/mount/data"):
+    DB_DIR = "/mount/data"
+else:
+    DB_DIR = os.getcwd()  # paikallisesti nykyinen työhakemisto
+
+os.makedirs(DB_DIR, exist_ok=True)
+DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
+
+
 APP_NAME = "Botti Henry 🤖"
 DEFAULT_MODEL = "gpt-4o-mini"  # ensisijainen, halpa malli
 
