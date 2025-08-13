@@ -130,7 +130,7 @@ def bullets_ai_governance() -> str:
 # Avainhaku: sivupalkki, env, secrets
 # -------------------------------
 def get_api_key() -> str:
-    # 1) Streamlit Secrets (turvallinen, vain palvelin näkee)
+    # 1) Streamlit Secrets (vain palvelin näkee)
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
         if v:
@@ -141,6 +141,16 @@ def get_api_key() -> str:
     v = os.getenv("OPENAI_API_KEY", "")
     return v
 
+def get_api_key_source() -> str:
+    # Palauttaa vain lähteen nimen debugia varten (ei itse avainta)
+    try:
+        if st.secrets.get("OPENAI_API_KEY", ""):
+            return "secrets"
+    except Exception:
+        pass
+    if os.getenv("OPENAI_API_KEY", ""):
+        return "env"
+    return "missing"
 
 def get_client() -> Optional[OpenAI]:
     key = get_api_key()
