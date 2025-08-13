@@ -56,9 +56,6 @@ Työkokemus:
 - Jyväskylä Entrepreneurship Society (2014–2016): Hallituksen pj (2015)
   • Spotlight-startup-tapahtuman käynnistäminen, laaja sidosryhmäverkosto
 
-- Invivian (2023–): Investor (oma yhtiö)
-  • Python-sijoitusanalytiikka (markkinadataskriptit, salkkuseuranta)
-
 - Keski-Suomen Pelastuslaitos (2010–2017): VPK-palomies
   • Altisti kriittiselle viestinnälle (TETRA), kurssit: ensiapu, vaaralliset aineet, ym.
 
