@@ -18,7 +18,7 @@ import streamlit as st
 from openai import OpenAI
 
 APP_NAME = "Botti Henry 🤖"
-DEFAULT_MODEL = "gpt-4-mini"  # ensisijainen, halpa malli
+DEFAULT_MODEL = "gpt-4o-mini"  # ensisijainen, halpa malli
 
 # ===== Henryn tausta (ABOUT_ME) =====
 ABOUT_ME = """
