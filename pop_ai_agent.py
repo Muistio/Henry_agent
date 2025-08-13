@@ -28,14 +28,16 @@ Asuinmaat: Suomi, Saksa, Kiina.
 
 Työkokemus:
 - Gofore Oyj (2020–): Marketing strategist
-  • Dataohjautuvat markkinointistrategiat ja Looker Studio -dashboardit
-  • Myynnin ja konsulttitiimien tuki: kohdennus, ICP, segmentointi
+  • Dataohjautuvat markkinointistrategiat ja tekoäly
+  • Myynnin ja konsulttitiimien tuki: kohdennus, segmentointi
   • Brändistrategiat yritysostoissa (4 kpl viime vuosina)
   • Marketing automation ja ABM-strategia
   • HubSpot & Salesforce integraatio ja ylläpito
+  • Muite tekoälyyn liittyviä asioita, esimerkiksi LLM-koulutusta
 
 - Airbus (2018–2020): Marketing manager
   • Viestinnän ja myynnin linjaus liiketoimintatavoitteisiin
+  • Tapahtumatuotanto
   • Kampanja-analytiikka (EU–LATAM), tapahtumat
   • Mission-critical IoT -konseptointi
   • Verkkosivuprojektit (esim. airbusfinland.com)
