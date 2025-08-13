@@ -312,7 +312,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("Admin")
-    admin_pw = st.text_input("Admin-salasana", type="password", help="Aseta Streamlit Secrets → ADMIN_PASSWORD")
+    admin_pw = st.text_input("Admin-salasana", type="password",)
     admin_ok = (admin_pw and st.secrets.get("ADMIN_PASSWORD", "") == admin_pw)
 
     if admin_ok:
