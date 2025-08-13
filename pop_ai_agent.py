@@ -130,20 +130,17 @@ def bullets_ai_governance() -> str:
 # Avainhaku: sivupalkki, env, secrets
 # -------------------------------
 def get_api_key() -> str:
-    # 1) sivupalkin syöte session statesta
-    v = st.session_state.get("OPENAI_API_KEY_INPUT", "")
-    if v:
-        return v
-    # 2) ympäristömuuttuja
-    v = os.getenv("OPENAI_API_KEY", "")
-    if v:
-        return v
-    # 3) streamlit secrets
+    # 1) Streamlit Secrets (turvallinen, vain palvelin näkee)
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
+        if v:
+            return v
     except Exception:
-        v = ""
+        pass
+    # 2) Ympäristömuuttuja (palvelinprosessi)
+    v = os.getenv("OPENAI_API_KEY", "")
     return v
+
 
 def get_client() -> Optional[OpenAI]:
     key = get_api_key()
