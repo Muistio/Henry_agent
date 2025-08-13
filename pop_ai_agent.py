@@ -2,16 +2,21 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit) — turvallinen, nano-ensisijainen + fallbackit
+Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä
 
-- Ei dokumenttien latausta / RAG:ia – vain chatti
-- Persona + ABOUT_ME + työpaikkailmoituksen tiivistelmä system-promptissa
-- API-avain luetaan VAIN palvelimelta: Streamlit Secrets tai ympäristömuuttuja
-- gpt-5-nano ensisijainen (ei temperature-paramia), fallback: gpt-4o, gpt-4o-mini (temperature=0.3)
-- Sivupalkissa kevyt diagnostiikka (ei näytä avainta)
+- Vain chatti (ei RAGia eikä tiedostonlatausta)
+- Kaikkien käyttäjien keskustelut talteen SQLiteen palvelinpuolella
+- Admin-näkymä salasanalla: listaus, haku, JSON/CSV-lataus
+- API-avain vain palvelimella (secrets/env), ei koskaan UI:ssa
+- Malli: gpt-4o-mini (nopea ja edullinen), ei UI-valintaa
 """
 
 import os
+import io
+import csv
+import json
+import sqlite3
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 import streamlit as st
@@ -26,9 +31,8 @@ else:
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 
-
 APP_NAME = "Botti Henry 🤖"
-DEFAULT_MODEL = "gpt-4o-mini"  # ensisijainen, halpa malli
+DEFAULT_MODEL = "gpt-4o-mini"  # ensisijainen, halpa ja nopea
 
 # ===== Henryn tausta (ABOUT_ME) =====
 ABOUT_ME = """
@@ -43,12 +47,12 @@ Työkokemus:
   • Brändistrategiat yritysostoissa (4 kpl viime vuosina)
   • Marketing automation ja ABM-strategia
   • HubSpot & Salesforce integraatio ja ylläpito
-  • Muite tekoälyyn liittyviä asioita, esimerkiksi LLM-koulutusta
+  • LLM-koulutuksia ja AI-kehitystä
 
 - Airbus (2018–2020): Marketing manager
   • Viestinnän ja myynnin linjaus liiketoimintatavoitteisiin
   • Tapahtumatuotanto
-  • Kampanja-analytiikka (EU–LATAM), tapahtumat
+  • Kampanja-analytiikka (EU–LATAM)
   • Mission-critical IoT -konseptointi
   • Verkkosivuprojektit (esim. airbusfinland.com)
 
@@ -79,14 +83,14 @@ Kielet:
 - Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
 
 AI & data -osaamisen kohokohdat:
-- Python-projektit: Tuotetietojen haku, markkinakatsaus, kilpailijavertailu
+- Python-projektit: tuotetietojen haku, markkinakatsaus, kilpailijavertailu
 - Liiketoimintalähtöinen AI: tunnistan arvokohteet, vien idean tuotantoon ja koulutan käyttäjät
 - Google Cloud data/AI -tuntemus, Microsoft Copilot/Graph-integraatiot
 - AI governance ja EU AI Act -näkökulma käytännön tekemiseen (riskit, kontrollit, selitettävyys)
 
 Miksi POP Pankki:
-- Haluan päästä tuomaan teknologista kehitystä  perinteiselle toimialalle.
-- Halu kehittää konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, ennustava analytiikka, riskien hallinta) ja rakentaa pysyvät prosessit (monitorointia, koneoppimista etc.).
+- Haluan tuoda teknologista kehitystä perinteiselle toimialalle.
+- Kehitän konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, ennustava analytiikka, riskienhallinta) ja pysyvät prosessit (monitorointi, MLOps/LLMOps).
 """
 
 # ===== Työpaikkailmoituksen tiivistelmä =====
@@ -99,10 +103,10 @@ AI-asiantuntijuudesta ja koulutuksesta.
 
 # ===== Persona =====
 PERSONA = (
-    "Olen Henry"
-    "Puhun minä-muodossa luonnollisesti ja napakasti. Puhun bisneslähtöisesti mutta huumorilla. Käytän luontevasti mutta niukasti emojia. "
+    "Olen Henry. "
+    "Puhun minä-muodossa luonnollisesti ja napakasti — bisneslähtöisesti, mutta sopivalla huumorilla. "
     "Annan konkreettisia askelmerkkejä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act). "
-    "Vältän hypeä, käytän huumoria ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
+    "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
 )
 
 # -------------------------------
@@ -307,7 +311,6 @@ init_db()
 
 # 2) Luo käyttäjälle pysyvä (anonyymi) tunniste selaimen istuntoon
 if "user_id" not in st.session_state:
-    # anonymisoitu random-tunniste; voit halutessa käyttää http-headersia user_agentiksi
     st.session_state.user_id = f"user-{os.urandom(4).hex()}"
 
 # 3) Sivupalkki – status & consent & admin
@@ -326,7 +329,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("Admin")
-    admin_pw = st.text_input("Admin-salasana", type="password", help="Aseta STREAMLIT_SECRETS → ADMIN_PASSWORD")
+    admin_pw = st.text_input("Admin-salasana", type="password", help="Aseta Streamlit Secrets → ADMIN_PASSWORD")
     admin_ok = (admin_pw and st.secrets.get("ADMIN_PASSWORD", "") == admin_pw)
 
     if admin_ok:
@@ -355,7 +358,7 @@ with st.sidebar:
                 writer = csv.writer(csv_buf)
                 writer.writerow(["role", "content", "ts"])
                 for m in msgs:
-                    writer.writerow([m["role"], m["content"]])
+                    writer.writerow([m["role"], m["content"], m["ts"]])
                 st.download_button(
                     label="⬇️ Lataa CSV",
                     data=csv_buf.getvalue().encode("utf-8"),
@@ -382,11 +385,9 @@ if "messages" not in st.session_state:
 
 # 5) Aloita uusi conversation SQLiteen tarvittaessa
 if "conversation_id" not in st.session_state:
-    # tallennetaan vain jos consent on päällä
     if consent:
-        user_agent = st.session_state.get("_browser", "")  # Streamlit ei anna suoraan UA:ta; jätetään tyhjäksi tai tallenna oma arvo
+        user_agent = ""  # Streamlit ei anna UA:ta suoraan; jätetään tyhjäksi
         st.session_state.conversation_id = start_conversation(st.session_state.user_id, consent, user_agent)
-        # tallenna alkutilanteen system-viesti
         save_message(st.session_state.conversation_id, "system", st.session_state.messages[0]["content"])
     else:
         st.session_state.conversation_id = None
@@ -399,7 +400,6 @@ for m in st.session_state.messages[1:]:
 # 7) Chat input
 user_msg = st.chat_input("Kysy Henryltä roolista, demoista tai projekteista…")
 if user_msg:
-    # lisää pinoon ja tietokantaan
     st.session_state.messages.append({"role": "user", "content": user_msg})
     if consent and st.session_state.conversation_id:
         save_message(st.session_state.conversation_id, "user", user_msg)
@@ -423,3 +423,4 @@ if user_msg:
 
     with st.chat_message("assistant"):
         st.markdown(reply_text)
+
