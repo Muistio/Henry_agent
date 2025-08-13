@@ -295,10 +295,10 @@ def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
 # -------------------------------
 def local_demo_response(user_query: str) -> str:
     plan = (
-        "### 30/60/90 päivän suunnitelma\n"
-        "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
-        "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
-        "- **90 pv**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, tuotantoprosessi (MLOps/LLMOps).\n"
+        "### tavoitteellinen suunnitelma\n"
+        "- **1-2kk**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
+        "- **2-4kk**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
+        "- **4-6kk**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, tuotantoprosessi (MLOps/LLMOps).\n"
     )
     return (
         "#### Paikallinen demotila (ei OpenAI-vastauksia)\n"
