@@ -303,15 +303,15 @@ if "conversation_id" not in st.session_state:
 
 # 4) Sivupalkki (oletus collapsed): status + admin
 with st.sidebar:
-    st.subheader("Asetukset")
+    st.subheader("Status")
     # API-yhteyden tila
     if get_client():
-        st.info("API-yhteys: ✅ käytössä")
+        st.info("Henry-agentti linjoilla: ✅")
     else:
         st.warning("API-yhteys: ❌ ei avainta")
 
     st.markdown("---")
-    st.subheader("Admin")
+    st.subheader("Asetukset")
     admin_pw = st.text_input("Admin-salasana", type="password",)
     admin_ok = (admin_pw and st.secrets.get("ADMIN_PASSWORD", "") == admin_pw)
 
