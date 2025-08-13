@@ -182,7 +182,7 @@ def get_avatar_url() -> str:
         return direct
     user = ""
     try:
-        user = st.secrets.get("GITHUB_USERNAME", "")
+        user = st.secrets.get("muistio", "")
     except Exception:
         pass
     if user:
@@ -355,8 +355,7 @@ st.markdown(
 <div class="hero">
   <img src="{avatar_url}" alt="Henry avatar" />
   <h1>Tutustu Henryn CV:seen</h1>
-  <p>AI & data -vetoista markkinointia, CRM-arkkitehtuuria ja käytännön kehitystä – kysy rohkeasti! ✨</p>
-  <div class="footer-note">Tämä demo tallentaa keskustelut anonyymisti palvelinpuolen SQLite-tietokantaan.</div>
+  <p>AI & data -vetoista markkinointia, CRM-kehitystä ja käytännön kädet savessa duunausta. Mitä haluaisit tietää? Kysy pois! ✨</p>
 </div>
 """,
     unsafe_allow_html=True,
