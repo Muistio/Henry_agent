@@ -56,7 +56,9 @@ Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista
 - My three childhood buddies and I run our own watch brand, Rohje (rohje.com). #Shopify
 
 Työkokemus:
-- Gofore Oyj (2020–): Marketing strategist
+- Tällä hetkellä opintovapaalla viimeistelemässä International Business-gradua. Samalla olen sivuaineena opiskellut strategista analyysiä ja makrotaloutta.
+
+- Gofore Oyj (2020–2025): Marketing strategist
   • Dataohjautuvat markkinointistrategiat ja tekoäly
   • Myynnin ja konsulttitiimien tuki: kohdennus, segmentointi
   • Brändistrategiat yritysostoissa (4 kpl viime vuosina)
