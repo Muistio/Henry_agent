@@ -69,7 +69,7 @@ Kielet:
 - Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
 
 AI & data -osaamisen kohokohdat:
-- Python-projektit: automatisoitu kaupankäynti (IBKR API), ML + sääntöpohja yhdistellen
+- Python-projektit: Tuotetietojen haku, markkinakatsaus, kilpailijavertailu
 - Liiketoimintalähtöinen AI: tunnistan arvokohteet, vien idean tuotantoon ja koulutan käyttäjät
 - Google Cloud data/AI -tuntemus, Microsoft Copilot/Graph-integraatiot
 - AI governance ja EU AI Act -näkökulma käytännön tekemiseen (riskit, kontrollit, selitettävyys)
