@@ -95,7 +95,9 @@ PERSONA = (
     "Vältän hypeä, käytän huumoria ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
 )
 
-# ===== Pikatools-tekstit =====
+# -------------------------------
+# Pikatools-tekstit (vastausten tueksi)
+# -------------------------------
 def bullets_ai_opportunities() -> str:
     return "\n".join([
         "1) Asiakaspalvelu Copilot: summaus, vastaus-ehdotukset, CRM-kirjaus.",
@@ -116,7 +118,9 @@ def bullets_ai_governance() -> str:
         "• Tietoturva & pääsynhallinta: salaisuudet, auditointi.",
     ])
 
-# ===== Avaimen luku vain palvelinpuolelta =====
+# -------------------------------
+# OpenAI: avain vain palvelimella
+# -------------------------------
 def get_api_key() -> str:
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
@@ -145,16 +149,118 @@ def get_client() -> Optional[OpenAI]:
     except Exception:
         return None
 
-# ===== Paikallinen fallback-vastaus =====
+# -------------------------------
+# SQLite apurit
+# -------------------------------
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        started_at TEXT,
+        ended_at TEXT,
+        consent INTEGER DEFAULT 1,
+        user_agent TEXT
+    )
+    """)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER,
+        role TEXT,
+        content TEXT,
+        ts TEXT,
+        FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+def start_conversation(user_id: str, consent: bool, user_agent: str) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO conversations (user_id, started_at, consent, user_agent) VALUES (?, ?, ?, ?)",
+        (user_id, datetime.utcnow().isoformat(), int(consent), user_agent[:200] if user_agent else None)
+    )
+    conv_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return conv_id
+
+def end_conversation(conversation_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "UPDATE conversations SET ended_at = ? WHERE id = ?",
+        (datetime.utcnow().isoformat(), conversation_id)
+    )
+    conn.commit()
+    conn.close()
+
+def save_message(conversation_id: int, role: str, content: str):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO messages (conversation_id, role, content, ts) VALUES (?, ?, ?, ?)",
+        (conversation_id, role, content, datetime.utcnow().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+def fetch_conversations(limit: int = 200, search_user: str = "") -> List[Dict[str, Any]]:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if search_user:
+        c.execute("""
+        SELECT id, user_id, started_at, ended_at, consent, user_agent
+        FROM conversations
+        WHERE user_id LIKE ?
+        ORDER BY id DESC LIMIT ?
+        """, (f"%{search_user}%", limit))
+    else:
+        c.execute("""
+        SELECT id, user_id, started_at, ended_at, consent, user_agent
+        FROM conversations
+        ORDER BY id DESC LIMIT ?
+        """, (limit,))
+    rows = c.fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        out.append({
+            "id": r[0],
+            "user_id": r[1],
+            "started_at": r[2],
+            "ended_at": r[3],
+            "consent": bool(r[4]),
+            "user_agent": r[5],
+        })
+    return out
+
+def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+    SELECT role, content, ts FROM messages
+    WHERE conversation_id = ?
+    ORDER BY id ASC
+    """, (conversation_id,))
+    rows = c.fetchall()
+    conn.close()
+    return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
+
+# -------------------------------
+# Paikallinen fallback-vastaus
+# -------------------------------
 def local_demo_response(user_query: str) -> str:
     plan = (
         "### 30/60/90 päivän suunnitelma\n"
-        "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), "
-        "governance-periaatteet ja hyväksymiskriteerit.\n"
-        "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), "
-        "dokumentaatio ja koulutus.\n"
-        "- **90 pv**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, "
-        "tuotantoprosessi (MLOps/LLMOps).\n"
+        "- **30 pv**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
+        "- **60 pv**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
+        "- **90 pv**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, tuotantoprosessi (MLOps/LLMOps).\n"
     )
     return (
         "#### Paikallinen demotila (ei OpenAI-vastauksia)\n"
@@ -168,49 +274,87 @@ def local_demo_response(user_query: str) -> str:
         "Pyydä syventämään jotakin osa-aluetta tai antamaan konkreettiset KPI:t ja hyväksymiskriteerit."
     )
 
-# ===== Mallin varamoodi (nano ilman temperaturea) =====
-def try_chat_with_fallbacks(client: OpenAI, base_model: str, messages: List[Dict[str, str]]) -> str:
-    # Järjestys: base_model -> gpt-4o -> gpt-4o-mini
-    candidates = []
-    if base_model:
-        candidates.append(base_model)
-    for alt in ("gpt-4o", "gpt-4o-mini"):
-        if alt not in candidates:
-            candidates.append(alt)
+# -------------------------------
+# Chat-vastaus OpenAI:lla
+# -------------------------------
+def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
+    resp = client.chat.completions.create(
+        model=DEFAULT_MODEL,
+        messages=messages,
+        temperature=0.3,
+    )
+    return resp.choices[0].message.content
 
-    last_err = None
-    for m in candidates:
-        try:
-            kwargs = {"model": m, "messages": messages}
-         
-            if not m.startswith("gpt-5-mini"):
-                kwargs["temperature"] = 0.3
-            resp = client.chat.completions.create(**kwargs)
-            return resp.choices[0].message.content
-        except Exception as e:
-            last_err = e
-            st.error(f"Chat-virhe mallilla `{m}`: {e.__class__.__name__}: {e}")
-            continue
-    raise last_err if last_err else RuntimeError("Tuntematon virhe chat-kutsussa")
-
-# ===== UI =====
+# -------------------------------
+# Streamlit UI
+# -------------------------------
 st.set_page_config(page_title=APP_NAME, page_icon="🤖")
 st.title(APP_NAME)
-st.caption("Keskustele 'Henry'-agentin kanssa tutustuaksesi paremmin")
+st.caption("Keskustele 'Henry'-agentin kanssa ja tutustu minuun")
 
+# 1) Alusta tietokanta
+init_db()
+
+# 2) Luo käyttäjälle pysyvä (anonyymi) tunniste selaimen istuntoon
+if "user_id" not in st.session_state:
+    # anonymisoitu random-tunniste; voit halutessa käyttää http-headersia user_agentiksi
+    st.session_state.user_id = f"user-{os.urandom(4).hex()}"
+
+# 3) Sivupalkki – status & consent & admin
 with st.sidebar:
     st.subheader("Asetukset")
-    st.markdown("---")
-    # Diagnostiikka: mistä avain löytyy (ei näytä avainta)
+    # Näytä API-yhteyden tila (ei paljasta avainta)
     src = get_api_key_source()
-    if src == "secrets":
-        st.info("Botti-Henry linjoilla: ✅ ")
-    elif src == "env":
-        st.info("API-yhteys: ✅ (Environment)")
+    if src in ("secrets", "env"):
+        st.info("Henry botti linjoilla ✅")
     else:
         st.warning("API-yhteys: ❌ ei avainta")
 
-# Viestipino
+    st.markdown("---")
+    consent = st.checkbox("Tallenna keskusteluni palvelimelle (parhaaseen demoon suositellaan)", value=True)
+    st.caption("Keskustelut tallennetaan anonyymillä tunnisteella palvelinpuolen SQLite-tietokantaan tämän demon aikana.")
+
+    st.markdown("---")
+    st.subheader("Admin")
+    admin_pw = st.text_input("Admin-salasana", type="password", help="Aseta STREAMLIT_SECRETS → ADMIN_PASSWORD")
+    admin_ok = (admin_pw and st.secrets.get("ADMIN_PASSWORD", "") == admin_pw)
+
+    if admin_ok:
+        st.success("Admin-näkymä käytössä")
+        q = st.text_input("Hae käyttäjän tunnisteella (optional)")
+        limit = st.number_input("Kuinka monta keskustelua näytetään", min_value=10, max_value=2000, value=200, step=10)
+        convs = fetch_conversations(limit=int(limit), search_user=q or "")
+        st.write(f"Löytyi {len(convs)} keskustelua")
+        for conv in convs:
+            with st.expander(f"ID {conv['id']} • {conv['user_id']} • {conv['started_at']} • consent={conv['consent']}"):
+                msgs = fetch_messages(conv["id"])
+                # Näytä viestit
+                for m in msgs:
+                    st.markdown(f"**{m['role']}** · _{m['ts']}_\n\n{m['content']}")
+                # Latausnapit (JSON/CSV)
+                json_data = json.dumps(msgs, ensure_ascii=False, indent=2)
+                st.download_button(
+                    label="⬇️ Lataa JSON",
+                    data=json_data.encode("utf-8"),
+                    file_name=f"conversation_{conv['id']}.json",
+                    mime="application/json",
+                    key=f"dl_json_{conv['id']}"
+                )
+                # CSV
+                csv_buf = io.StringIO()
+                writer = csv.writer(csv_buf)
+                writer.writerow(["role", "content", "ts"])
+                for m in msgs:
+                    writer.writerow([m["role"], m["content"]])
+                st.download_button(
+                    label="⬇️ Lataa CSV",
+                    data=csv_buf.getvalue().encode("utf-8"),
+                    file_name=f"conversation_{conv['id']}.csv",
+                    mime="text/csv",
+                    key=f"dl_csv_{conv['id']}"
+                )
+
+# 4) Viestipino (näytölle) + system prompt
 if "messages" not in st.session_state:
     system_prompt = (
         f"{PERSONA}\n\n"
@@ -226,28 +370,46 @@ if "messages" not in st.session_state:
         {"role": "system", "content": system_prompt}
     ]
 
-# Näytä historia (ilman system-viestiä)
+# 5) Aloita uusi conversation SQLiteen tarvittaessa
+if "conversation_id" not in st.session_state:
+    # tallennetaan vain jos consent on päällä
+    if consent:
+        user_agent = st.session_state.get("_browser", "")  # Streamlit ei anna suoraan UA:ta; jätetään tyhjäksi tai tallenna oma arvo
+        st.session_state.conversation_id = start_conversation(st.session_state.user_id, consent, user_agent)
+        # tallenna alkutilanteen system-viesti
+        save_message(st.session_state.conversation_id, "system", st.session_state.messages[0]["content"])
+    else:
+        st.session_state.conversation_id = None
+
+# 6) Näytä historia (ilman system-viestiä)
 for m in st.session_state.messages[1:]:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# Syöte
+# 7) Chat input
 user_msg = st.chat_input("Kysy Henryltä roolista, demoista tai projekteista…")
 if user_msg:
+    # lisää pinoon ja tietokantaan
     st.session_state.messages.append({"role": "user", "content": user_msg})
+    if consent and st.session_state.conversation_id:
+        save_message(st.session_state.conversation_id, "user", user_msg)
+
     with st.chat_message("user"):
         st.markdown(user_msg)
 
     client = get_client()
     if client:
         try:
-            reply_text = try_chat_with_fallbacks(client, DEFAULT_MODEL, st.session_state.messages)
-        except Exception:
-            st.warning("OpenAI-chat ei toiminut varamalleillakaan → näytetään paikallinen demovastaus.")
+            reply_text = call_chat(client, st.session_state.messages)
+        except Exception as e:
+            st.error(f"OpenAI-virhe: {e.__class__.__name__}: {e}")
             reply_text = local_demo_response(user_msg)
     else:
         reply_text = local_demo_response(user_msg)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
+    if consent and st.session_state.conversation_id:
+        save_message(st.session_state.conversation_id, "assistant", reply_text)
+
     with st.chat_message("assistant"):
         st.markdown(reply_text)
