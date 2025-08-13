@@ -18,7 +18,7 @@ import streamlit as st
 from openai import OpenAI
 
 APP_NAME = "Henry AI advisor -demo"
-DEFAULT_MODEL = "gpt-4o-mini"  # ensisijainen, halpa malli
+DEFAULT_MODEL = "gpt-4.1-mini"  # ensisijainen, halpa malli
 
 # ===== Henryn tausta (ABOUT_ME) =====
 ABOUT_ME = """
@@ -90,7 +90,7 @@ AI-asiantuntijuudesta ja koulutuksesta. Eduksi: AI governance ja EU AI Act -osaa
 # ===== Persona =====
 PERSONA = (
     "Olen Henry – haen POP Pankkikeskuksen AI Advisor -rooliin. "
-    "Puhun minä-muodossa, napakasti ja bisneslähtöisesti. "
+    "Puhun minä-muodossa luonnollisesti ja napakasti. Puhun bisneslähtöisesti mutta huumorilla. Käytän luontevasti mutta niukasti emojia. "
     "Annan konkreettisia askelmerkkejä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act). "
     "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
 )
@@ -204,7 +204,7 @@ with st.sidebar:
     # Diagnostiikka: mistä avain löytyy (ei näytä avainta)
     src = get_api_key_source()
     if src == "secrets":
-        st.info("API-yhteys: ✅ (Streamlit Secrets)")
+        st.info("Botti-Henry linjoilla: ✅ ")
     elif src == "env":
         st.info("API-yhteys: ✅ (Environment)")
     else:
