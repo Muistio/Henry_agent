@@ -3,12 +3,12 @@
 
 """
 Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä
-
 - Vain chatti (ei RAGia eikä tiedostonlatausta)
-- Kaikkien käyttäjien keskustelut talteen SQLiteen palvelinpuolella
+- Kaikkien käyttäjien keskustelut talteen SQLiteen palvelinpuolella (ilman erillistä kysymistä)
 - Admin-näkymä salasanalla: listaus, haku, JSON/CSV-lataus
 - API-avain vain palvelimella (secrets/env), ei koskaan UI:ssa
 - Malli: gpt-4o-mini (nopea ja edullinen), ei UI-valintaa
+- Sivupalkki on oletuksena piilotettu (collapsed)
 """
 
 import os
@@ -22,19 +22,25 @@ from typing import List, Dict, Any, Optional
 import streamlit as st
 from openai import OpenAI
 
-# Valitse turvallinen kirjoituspolku: Cloudissa /mount/data on kirjoituskelpoinen
+# -------------------------------
+# Tietokannan polku (kirjoituskelpoinen myös Streamlit Cloudissa)
+# -------------------------------
 if os.path.exists("/mount/data"):
     DB_DIR = "/mount/data"
 else:
     DB_DIR = os.getcwd()  # paikallisesti nykyinen työhakemisto
-
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 
+# -------------------------------
+# Perusasetukset
+# -------------------------------
 APP_NAME = "Botti Henry 🤖"
-DEFAULT_MODEL = "gpt-4o-mini"  # ensisijainen, halpa ja nopea
+DEFAULT_MODEL = "gpt-4o-mini"  # nopea ja edullinen
 
-# ===== Henryn tausta (ABOUT_ME) =====
+# -------------------------------
+# Henryn tausta & persona
+# -------------------------------
 ABOUT_ME = """
 Nimi: Henry
 Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
@@ -93,7 +99,6 @@ Miksi POP Pankki:
 - Kehitän konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, ennustava analytiikka, riskienhallinta) ja pysyvät prosessit (monitorointi, MLOps/LLMOps).
 """
 
-# ===== Työpaikkailmoituksen tiivistelmä =====
 JOB_AD_SUMMARY = """
 POP AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista,
 AI-ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen
@@ -101,7 +106,6 @@ juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tu
 AI-asiantuntijuudesta ja koulutuksesta.
 """
 
-# ===== Persona =====
 PERSONA = (
     "Olen Henry. "
     "Puhun minä-muodossa luonnollisesti ja napakasti — bisneslähtöisesti, mutta sopivalla huumorilla. "
@@ -144,16 +148,6 @@ def get_api_key() -> str:
         pass
     return os.getenv("OPENAI_API_KEY", "")
 
-def get_api_key_source() -> str:
-    try:
-        if st.secrets.get("OPENAI_API_KEY", ""):
-            return "secrets"
-    except Exception:
-        pass
-    if os.getenv("OPENAI_API_KEY", ""):
-        return "env"
-    return "missing"
-
 def get_client() -> Optional[OpenAI]:
     key = get_api_key()
     if not key:
@@ -192,27 +186,17 @@ def init_db():
     conn.commit()
     conn.close()
 
-def start_conversation(user_id: str, consent: bool, user_agent: str) -> int:
+def start_conversation(user_id: str, user_agent: str) -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
         "INSERT INTO conversations (user_id, started_at, consent, user_agent) VALUES (?, ?, ?, ?)",
-        (user_id, datetime.utcnow().isoformat(), int(consent), user_agent[:200] if user_agent else None)
+        (user_id, datetime.utcnow().isoformat(), 1, user_agent[:200] if user_agent else None)
     )
     conv_id = c.lastrowid
     conn.commit()
     conn.close()
     return conv_id
-
-def end_conversation(conversation_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "UPDATE conversations SET ended_at = ? WHERE id = ?",
-        (datetime.utcnow().isoformat(), conversation_id)
-    )
-    conn.commit()
-    conn.close()
 
 def save_message(conversation_id: int, role: str, content: str):
     conn = sqlite3.connect(DB_PATH)
@@ -242,17 +226,16 @@ def fetch_conversations(limit: int = 200, search_user: str = "") -> List[Dict[st
         """, (limit,))
     rows = c.fetchall()
     conn.close()
-    out = []
-    for r in rows:
-        out.append({
+    return [
+        {
             "id": r[0],
             "user_id": r[1],
             "started_at": r[2],
             "ended_at": r[3],
             "consent": bool(r[4]),
             "user_agent": r[5],
-        })
-    return out
+        } for r in rows
+    ]
 
 def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
     conn = sqlite3.connect(DB_PATH)
@@ -300,32 +283,32 @@ def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
     return resp.choices[0].message.content
 
 # -------------------------------
-# Streamlit UI
+# UI
 # -------------------------------
-st.set_page_config(page_title=APP_NAME, page_icon="🤖")
+st.set_page_config(page_title=APP_NAME, page_icon="🤖", initial_sidebar_state="collapsed")
 st.title(APP_NAME)
 st.caption("Keskustele 'Henry'-agentin kanssa ja tutustu minuun")
 
-# 1) Alusta tietokanta
+# 1) DB init
 init_db()
 
-# 2) Luo käyttäjälle pysyvä (anonyymi) tunniste selaimen istuntoon
+# 2) Anonyymi käyttäjä-ID
 if "user_id" not in st.session_state:
     st.session_state.user_id = f"user-{os.urandom(4).hex()}"
 
-# 3) Sivupalkki – status & consent & admin
+# 3) Aloita uusi conversation (tallennus aina päällä)
+if "conversation_id" not in st.session_state:
+    user_agent = ""  # Streamlit ei anna UA:ta suoraan
+    st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent)
+
+# 4) Sivupalkki (oletus collapsed): status + admin
 with st.sidebar:
     st.subheader("Asetukset")
-    # Näytä API-yhteyden tila (ei paljasta avainta)
-    src = get_api_key_source()
-    if src in ("secrets", "env"):
-        st.info("Henry botti linjoilla ✅")
+    # API-yhteyden tila
+    if get_client():
+        st.info("API-yhteys: ✅ käytössä")
     else:
         st.warning("API-yhteys: ❌ ei avainta")
-
-    st.markdown("---")
-    consent = st.checkbox("Tallenna keskusteluni palvelimelle (parhaaseen demoon suositellaan)", value=True)
-    st.caption("Keskustelut tallennetaan anonyymillä tunnisteella palvelinpuolen SQLite-tietokantaan tämän demon aikana.")
 
     st.markdown("---")
     st.subheader("Admin")
@@ -341,10 +324,9 @@ with st.sidebar:
         for conv in convs:
             with st.expander(f"ID {conv['id']} • {conv['user_id']} • {conv['started_at']} • consent={conv['consent']}"):
                 msgs = fetch_messages(conv["id"])
-                # Näytä viestit
                 for m in msgs:
                     st.markdown(f"**{m['role']}** · _{m['ts']}_\n\n{m['content']}")
-                # Latausnapit (JSON/CSV)
+                # Lataukset
                 json_data = json.dumps(msgs, ensure_ascii=False, indent=2)
                 st.download_button(
                     label="⬇️ Lataa JSON",
@@ -353,7 +335,6 @@ with st.sidebar:
                     mime="application/json",
                     key=f"dl_json_{conv['id']}"
                 )
-                # CSV
                 csv_buf = io.StringIO()
                 writer = csv.writer(csv_buf)
                 writer.writerow(["role", "content", "ts"])
@@ -367,7 +348,7 @@ with st.sidebar:
                     key=f"dl_csv_{conv['id']}"
                 )
 
-# 4) Viestipino (näytölle) + system prompt
+# 5) System-prompt
 if "messages" not in st.session_state:
     system_prompt = (
         f"{PERSONA}\n\n"
@@ -382,15 +363,8 @@ if "messages" not in st.session_state:
     st.session_state.messages: List[Dict[str, Any]] = [
         {"role": "system", "content": system_prompt}
     ]
-
-# 5) Aloita uusi conversation SQLiteen tarvittaessa
-if "conversation_id" not in st.session_state:
-    if consent:
-        user_agent = ""  # Streamlit ei anna UA:ta suoraan; jätetään tyhjäksi
-        st.session_state.conversation_id = start_conversation(st.session_state.user_id, consent, user_agent)
-        save_message(st.session_state.conversation_id, "system", st.session_state.messages[0]["content"])
-    else:
-        st.session_state.conversation_id = None
+    # tallenna system-viesti
+    save_message(st.session_state.conversation_id, "system", system_prompt)
 
 # 6) Näytä historia (ilman system-viestiä)
 for m in st.session_state.messages[1:]:
@@ -401,8 +375,7 @@ for m in st.session_state.messages[1:]:
 user_msg = st.chat_input("Kysy Henryltä roolista, demoista tai projekteista…")
 if user_msg:
     st.session_state.messages.append({"role": "user", "content": user_msg})
-    if consent and st.session_state.conversation_id:
-        save_message(st.session_state.conversation_id, "user", user_msg)
+    save_message(st.session_state.conversation_id, "user", user_msg)
 
     with st.chat_message("user"):
         st.markdown(user_msg)
@@ -418,9 +391,7 @@ if user_msg:
         reply_text = local_demo_response(user_msg)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
-    if consent and st.session_state.conversation_id:
-        save_message(st.session_state.conversation_id, "assistant", reply_text)
+    save_message(st.session_state.conversation_id, "assistant", reply_text)
 
     with st.chat_message("assistant"):
         st.markdown(reply_text)
-
