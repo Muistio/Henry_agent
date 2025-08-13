@@ -187,7 +187,7 @@ def get_avatar_url() -> str:
         pass
     if user:
         return f"https://github.com/{user}.png?size=240"
-    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
+    return "https://avatars.githubusercontent.com/u/224648509?v=4"
 
 # -------------------------------
 # SQLite apurit
