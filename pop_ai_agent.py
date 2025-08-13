@@ -187,11 +187,27 @@ st.title(APP_NAME)
 
 with st.sidebar:
     st.subheader("Asetukset")
-    api_key_input = st.text_input("OPENAI_API_KEY", value=os.getenv("OPENAI_API_KEY", ""), type="password")
-    st.session_state["OPENAI_API_KEY_INPUT"] = api_key_input
+
+    # Näytä manuaalinen avainkenttä vain paikallisessa kehityksessä
+    SHOW_KEY_INPUT = os.getenv("SHOW_KEY_INPUT", "0") == "1"
+    api_key_input = ""
+    if SHOW_KEY_INPUT:
+        api_key_input = st.text_input(
+            "OPENAI_API_KEY (vain paikalliseen kehitykseen)",
+            value="",
+            type="password",
+            help="Älä käytä tätä julkisessa demossa. Streamlit Cloudissa käytä Secretsiä."
+        )
+        # älä tallenna avainta session_stateen
+        if api_key_input:
+            os.environ["OPENAI_API_KEY"] = api_key_input  # jää vain palvelinprosessiin
+
     model = st.text_input("Chat-malli", value=DEFAULT_MODEL)
-    key_status = "✅ avain löytyi" if get_api_key() else "❌ avain puuttuu"
-    st.info(f"Avain: {key_status}")
+
+    # Yksinkertainen tila-ilmoitus ilman paljastuksia
+    key_present = bool(os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", ""))
+    st.info("API-yhteys: ✅ käytössä" if key_present else "API-yhteys: ❌ ei avainta")
+
 
 st.caption("Keskustele 'Henry'-agentin kanssa tästä AI Advisor -roolista.")
 
