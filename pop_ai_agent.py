@@ -83,7 +83,7 @@ Miksi POP Pankki:
 
 # ===== Työpaikkailmoituksen tiivistelmä =====
 JOB_AD_SUMMARY = """
-POP Pankkikeskuksen AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista,
+POP AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista,
 AI-ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen
 juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tukemisesta sekä sisäisestä
 AI-asiantuntijuudesta ja koulutuksesta.
@@ -91,7 +91,7 @@ AI-asiantuntijuudesta ja koulutuksesta.
 
 # ===== Persona =====
 PERSONA = (
-    "Olen Henry – haen POP Pankkikeskuksen AI Advisor -rooliin. "
+    "Olen Henry"
     "Puhun minä-muodossa luonnollisesti ja napakasti. Puhun bisneslähtöisesti mutta huumorilla. Käytän luontevasti mutta niukasti emojia. "
     "Annan konkreettisia askelmerkkejä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act). "
     "Vältän hypeä, käytän huumoria ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
