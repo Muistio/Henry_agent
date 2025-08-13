@@ -355,7 +355,7 @@ st.markdown(
 <div class="hero">
   <img src="{avatar_url}" alt="Henry avatar" />
   <h1>Tutustu Henryn CV:seen</h1>
-  <p>AI & data -vetoista markkinointia, CRM-kehitystä ja käytännön kädet savessa duunausta. Mitä haluaisit tietää? Kysy pois! ✨</p>
+  <p>Data ja AI vetoista markkinointia, CRM-kehitystä ja käytännön duunia kädet savessa. Mitä haluaisit tietää? Kysy pois! ✨</p>
 </div>
 """,
     unsafe_allow_html=True,
