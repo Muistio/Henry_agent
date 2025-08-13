@@ -18,12 +18,12 @@ import streamlit as st
 from openai import OpenAI
 
 APP_NAME = "Botti Henry 🤖"
-DEFAULT_MODEL = "gpt-4.1-mini"  # ensisijainen, halpa malli
+DEFAULT_MODEL = "gpt-4-mini"  # ensisijainen, halpa malli
 
 # ===== Henryn tausta (ABOUT_ME) =====
 ABOUT_ME = """
 Nimi: Henry
-Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittaja.
+Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
 Asuinmaat: Suomi, Saksa, Kiina.
 
 Työkokemus:
