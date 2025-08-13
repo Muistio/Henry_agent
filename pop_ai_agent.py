@@ -188,13 +188,13 @@ def get_avatar_url() -> str:
     # 2) username → github avatar
     user = ""
     try:
-        user = st.secrets.get("GITHUB_USERNAME", "")
+        user = st.secrets.get("muistio", "")
     except Exception:
         pass
     if user:
         return f"https://github.com/{user}.png?size=240"
     # 3) fallback placeholder
-    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
+    return "https://avatars.githubusercontent.com/u/224648509?v=4"
 
 # -------------------------------
 # SQLite apurit
