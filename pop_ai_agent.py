@@ -2,25 +2,23 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit) — turvallinen, diagnostiikalla ja varamalleilla
+Henry AI advisor -demo (Streamlit) — turvallinen, nano-ensisijainen + fallbackit
 
 - Ei dokumenttien latausta / RAG:ia – vain chatti
 - Persona + ABOUT_ME + työpaikkailmoituksen tiivistelmä system-promptissa
 - API-avain luetaan VAIN palvelimelta: Streamlit Secrets tai ympäristömuuttuja
-- Diagnostiikka sivupalkissa: näyttää lähteen (secrets/env) ja testaa yhteyden
-- Mallin varamoodi: yrittää valitsemasi mallin, sitten gpt-4o, sitten gpt-4o-mini
-- Jos mikään ei toimi → näyttää tarkat virheet; viimeisenä paikallinen demovastaus
+- gpt-5-nano ensisijainen (ei temperature-paramia), fallback: gpt-4o, gpt-4o-mini (temperature=0.3)
+- Sivupalkissa kevyt diagnostiikka (ei näytä avainta)
 """
 
 import os
 from typing import List, Dict, Any, Optional
 
 import streamlit as st
-from openai import OpenAI, APIStatusError
+from openai import OpenAI
 
 APP_NAME = "Henry AI advisor -demo"
-DEFAULT_MODEL = "gpt-5-nano"  # halpa ja nopea vaihtoehto
-# Poista mahdollinen model-valinta sivupalkista — aina käytetään DEFAULT_MODEL
+DEFAULT_MODEL = "gpt-5-nano"  # ensisijainen, halpa malli
 
 # ===== Henryn tausta (ABOUT_ME) =====
 ABOUT_ME = """
@@ -120,14 +118,12 @@ def bullets_ai_governance() -> str:
 
 # ===== Avaimen luku vain palvelinpuolelta =====
 def get_api_key() -> str:
-    # 1) Streamlit Secrets (turvallisin)
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
         if v:
             return v
     except Exception:
         pass
-    # 2) Ympäristömuuttuja
     return os.getenv("OPENAI_API_KEY", "")
 
 def get_api_key_source() -> str:
@@ -145,7 +141,6 @@ def get_client() -> Optional[OpenAI]:
     if not key:
         return None
     try:
-        # pieni timeout varmuuden vuoksi
         return OpenAI(api_key=key, timeout=30.0)
     except Exception:
         return None
@@ -173,9 +168,9 @@ def local_demo_response(user_query: str) -> str:
         "Pyydä syventämään jotakin osa-aluetta tai antamaan konkreettiset KPI:t ja hyväksymiskriteerit."
     )
 
-# ===== Mallin varamoodi (fallback chain) =====
+# ===== Mallin varamoodi (nano ilman temperaturea) =====
 def try_chat_with_fallbacks(client: OpenAI, base_model: str, messages: List[Dict[str, str]]) -> str:
-    # kokeilujärjestys: valittu malli -> gpt-4o -> gpt-4o-mini
+    # Järjestys: base_model -> gpt-4o -> gpt-4o-mini
     candidates = []
     if base_model:
         candidates.append(base_model)
@@ -186,19 +181,16 @@ def try_chat_with_fallbacks(client: OpenAI, base_model: str, messages: List[Dict
     last_err = None
     for m in candidates:
         try:
-            resp = client.chat.completions.create(
-                model=m,
-                messages=messages,
-                temperature=0.3,
-            )
+            kwargs = {"model": m, "messages": messages}
+            # gpt-5-nano ei tue temperature-parametria
+            if not m.startswith("gpt-5-nano"):
+                kwargs["temperature"] = 0.3
+            resp = client.chat.completions.create(**kwargs)
             return resp.choices[0].message.content
         except Exception as e:
             last_err = e
-            # Näytä syy käyttäjälle siististi (tämä helpottaa diagia)
             st.error(f"Chat-virhe mallilla `{m}`: {e.__class__.__name__}: {e}")
             continue
-
-    # Kaikki mallit epäonnistuivat → heitetään viimeisin virhe ylös
     raise last_err if last_err else RuntimeError("Tuntematon virhe chat-kutsussa")
 
 # ===== UI =====
@@ -209,13 +201,12 @@ st.caption("Keskustele 'Henry'-agentin kanssa tästä AI Advisor -roolista.")
 with st.sidebar:
     st.subheader("Asetukset")
     st.markdown("---")
-
-    # Diagnostiikka: mistä avain löytyy
+    # Diagnostiikka: mistä avain löytyy (ei näytä avainta)
     src = get_api_key_source()
     if src == "secrets":
-        st.info("Henry linjoilla: ✅  ")
+        st.info("API-yhteys: ✅ (Streamlit Secrets)")
     elif src == "env":
-        st.info("API-yhteys: ✅ löytyi (Environment)")
+        st.info("API-yhteys: ✅ (Environment)")
     else:
         st.warning("API-yhteys: ❌ ei avainta")
 
