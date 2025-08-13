@@ -35,7 +35,7 @@ DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 # -------------------------------
 # Perusasetukset
 # -------------------------------
-APP_NAME = "Botti Henry 🤖"
+APP_NAME = "Tutustu Henryn CV:seen 🤖"
 DEFAULT_MODEL = "gpt-4o-mini"  # nopea ja edullinen
 
 # -------------------------------
@@ -44,7 +44,7 @@ DEFAULT_MODEL = "gpt-4o-mini"  # nopea ja edullinen
 ABOUT_ME = """
 Nimi: Henry
 Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
-Asuinmaat: Suomi, Saksa, Kiina.
+Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista. Juo kahvin mustana.
 
 Työkokemus:
 - Gofore Oyj (2020–): Marketing strategist
@@ -78,7 +78,7 @@ Työkokemus:
   • Spotlight-startup-tapahtuman käynnistäminen, laaja sidosryhmäverkosto
 
 - Keski-Suomen Pelastuslaitos (2010–2017): VPK-palomies
-  • Altisti kriittiselle viestinnälle (TETRA), kurssit: ensiapu, vaaralliset aineet, ym.
+  •  Stressin hallinta, kriittinen viestintä (TETRA), kurssit: ensiapu, vaaralliset aineet, ym.
 
 Koulutus:
 - KTM, Jyväskylän yliopisto (2019–)
@@ -110,7 +110,8 @@ PERSONA = (
     "Olen Henry. "
     "Puhun minä-muodossa luonnollisesti ja napakasti — bisneslähtöisesti, mutta sopivalla huumorilla. "
     "Annan konkreettisia askelmerkkejä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act). "
-    "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
+    "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän yllä olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
+    "Olen asiantuntija markkinoinnissa ja data-analytiikassa"
 )
 
 # -------------------------------
