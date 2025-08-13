@@ -175,7 +175,7 @@ def get_client() -> Optional[OpenAI]:
 def get_avatar_url() -> str:
     direct = ""
     try:
-        direct = st.secrets.get("GITHUB_AVATAR_URL", "")
+        direct = st.secrets.get("https://avatars.githubusercontent.com/u/224648509?v=4", "")
     except Exception:
         pass
     if direct:
@@ -445,7 +445,7 @@ for m in st.session_state.messages[1:]:
         st.markdown(m["content"])
 
 # 7) Chat input
-user_msg = st.chat_input("Kysy Henryltä roolista, demoista tai projekteista…")
+user_msg = st.chat_input("Kysy lisää rooleista, projekteista tai mistä hyvänsä")
 if user_msg:
     st.session_state.messages.append({"role": "user", "content": user_msg})
     save_message(st.session_state.conversation_id, "user", user_msg)
