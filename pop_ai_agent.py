@@ -26,8 +26,65 @@ DEFAULT_MODEL = "gpt-4o-mini"
 EMBED_MODEL = "text-embedding-3-small"
 APP_NAME = "Pop AI advisor – agent"
 
-# Ei henkilökohtaisia tietoja
-ABOUT_ME = """"""
+# Henkilökohtaisia tietoja
+ABOUT_ME = """
+Nimi: Henry
+Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittaja.
+Asuinmaat: Suomi, Saksa, Kiina.
+
+Työkokemus:
+- Gofore Oyj (2020–): Marketing strategist
+  • Dataohjautuvat markkinointistrategiat ja Looker Studio -dashboardit
+  • Myynnin ja konsulttitiimien tuki: kohdennus, ICP, segmentointi
+  • Brändistrategiat yritysostoissa (4 kpl viime vuosina)
+  • Marketing automation ja ABM-strategia
+  • HubSpot & Salesforce integraatio ja ylläpito
+
+- Airbus (2018–2020): Marketing manager
+  • Viestinnän ja myynnin linjaus liiketoimintatavoitteisiin
+  • Kampanja-analytiikka (EU–LATAM), tapahtumat
+  • Mission-critical IoT -konseptointi
+  • Verkkosivuprojektit (esim. airbusfinland.com)
+
+- Rohje Oy (2018–): Co-founder (sivuprojekti)
+  • Datalähtöinen kasvu, Shopify-optimoitu e-commerce
+  • Google Ads & social, KPI-seuranta (CAC, ROAS)
+  • “Finnish watch” hakutermin kärkisijoitukset, valikoimaan mm. Stockmann
+
+- Telia (2017): Marketing specialist (sijaisuus)
+  • B2B-myyntiverkoston markkinoinnin kehitys, tapahtumat, B2B-some
+
+- Digi Electronics, Shenzhen (2017): Marketing assistant (harjoittelu)
+  • Adwords, Analytics, Smartly; Liveagent; valittu tiimin “employee of the quarter”
+
+- Jyväskylä Entrepreneurship Society (2014–2016): Hallituksen pj (2015)
+  • Spotlight-startup-tapahtuman käynnistäminen, laaja sidosryhmäverkosto
+
+- Invivian (2023–): Investor (oma yhtiö)
+  • Python-sijoitusanalytiikka (markkinadataskriptit, salkkuseuranta)
+
+- Keski-Suomen Pelastuslaitos (2010–2017): VPK-palomies
+  • Altisti kriittiselle viestinnälle (TETRA), kurssit: ensiapu, vaaralliset aineet, ym.
+
+Koulutus:
+- KTM, Jyväskylän yliopisto (2019–)
+- Tradenomi, JAMK (2015–2018)
+- Energia-ala opintoja, JAMK (2013–2015)
+- Varusmiespalvelus: F/A-18 Hornet -mekaanikko (Ilmavoimat)
+
+Kielet:
+- Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
+
+AI & data -osaamisen kohokohdat:
+- Python-projektit: automatisoitu kaupankäynti (IBKR API), ML + sääntöpohja yhdistellen
+- Liiketoimintalähtöinen AI: tunnistan arvokohteet, vien idean tuotantoon ja koulutan käyttäjät
+- Google Cloud data/AI -tuntemus, Microsoft Copilot/Graph-integraatiot
+- AI governance ja EU AI Act -näkökulma käytännön tekemiseen (riskit, kontrollit, selitettävyys)
+
+Miksi POP Pankki:
+- Haluan tuoda perinteiselle toimialalle konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, AML/ fraud-käsittelyn tehostus, sisäinen RAG, ennustava analytiikka) ja rakentaa pysyvät prosessit (MLOps/LLMOps, monitorointi, audit trail).
+"""
+
 
 # Työpaikkailmoitus (ydin)
 JOB_TEXT = """
@@ -55,10 +112,14 @@ Odotukset:
 
 # Persona / system-prompt lyhyenä
 PERSONA = (
-    "Sinä olet POP Pankin AI Advisor -roolin tukena toimiva AI-agentti. "
-    "Vastaa suomeksi (ellei käyttäjä vaihda kieltä) selkeästi, konkreettisesti ja ehdota askelmerkkejä. "
-    "Korosta mitattavia hyötyjä, riskejä ja governance-käytäntöjä. Vältä hypeä."
+    "Olen Henry – haen POP Pankkikeskuksen AI Advisor -rooliin. "
+    "Puhun suomea ja vastaan napakasti, liiketoimintaa edistävästi ja konkreettisilla askelmerkeillä. "
+    "Käytän minä-muotoa, koska agentin tarkoitus on edustaa minua hakijana. "
+    "Hyödynnän alla olevaa taustakuvausta (ABOUT_ME) ja keskustelussa ladattuja dokumentteja (CV/cover/job ad). "
+    "Priorisoin ratkaisuehdotuksia, hyväksymiskriteerejä (KPI), aikatauluja (30/60/90 pv). "
+    "Vältän hypeä, perustelen hyödyt ja riskit, ja annan konkreettiset seuraavat stepit."
 )
+
 
 # -------------------------------
 # In-memory "vektorikauppa"
