@@ -182,8 +182,8 @@ def try_chat_with_fallbacks(client: OpenAI, base_model: str, messages: List[Dict
     for m in candidates:
         try:
             kwargs = {"model": m, "messages": messages}
-            # gpt-5-nano ei tue temperature-parametria
-            if not m.startswith("gpt-5-nano"):
+         
+            if not m.startswith("gpt-5-mini"):
                 kwargs["temperature"] = 0.3
             resp = client.chat.completions.create(**kwargs)
             return resp.choices[0].message.content
