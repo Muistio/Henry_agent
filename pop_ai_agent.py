@@ -43,6 +43,7 @@ Työkokemus:
   • Verkkosivuprojektit (esim. airbusfinland.com)
 
 - Rohje Oy (2018–): Co-founder (sivuprojekti)
+  • Kellobrändin rakentaminen alusta
   • Datalähtöinen kasvu, Shopify-optimoitu e-commerce
   • Google Ads & social, KPI-seuranta (CAC, ROAS)
   • “Finnish watch” -hakutermin kärkisijoitukset, valikoimaan mm. Stockmann
@@ -63,7 +64,6 @@ Koulutus:
 - KTM, Jyväskylän yliopisto (2019–)
 - Tradenomi, JAMK (2015–2018)
 - Energia-ala opintoja, JAMK (2013–2015)
-- Varusmiespalvelus: F/A-18 Hornet -mekaanikko (Ilmavoimat)
 
 Kielet:
 - Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
