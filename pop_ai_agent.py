@@ -310,23 +310,6 @@ def safe_chat_completion(client: OpenAI, model: str, messages: list, temperature
 st.set_page_config(page_title=APP_NAME, page_icon="🤖")
 st.title(APP_NAME)
 
-with st.sidebar:
-    st.subheader("Asetukset")
-    api_key_input = st.text_input("OPENAI_API_KEY", value=os.getenv("OPENAI_API_KEY", ""), type="password")
-    st.session_state["OPENAI_API_KEY_INPUT"] = api_key_input  # talteen automaattista hakua varten
-
-    model = st.text_input("Chat-malli", value=DEFAULT_MODEL)
-    st.caption("Vinkki: Streamlit Cloudissa lisää avain Settings → Secrets (OPENAI_API_KEY).")
-
-    # Näytä löytyikö avain jostain (ilman paljastamista)
-    key_detected = "✅ avain löytyi" if (_get_api_key_from_anywhere()) else "❌ avain puuttuu"
-    st.info(f"Avain: {key_detected}")
-
-    st.markdown("---")
-    st.caption("Lisää dokumentteja (PDF/TXT) — indeksoidaan paikallisesti.")
-    up_files = st.file_uploader("Lisää dokumentteja", type=["pdf", "txt"], accept_multiple_files=True)
-    if st.button("Tyhjennä keskustelu"):
-        st.session_state.pop("messages", None)
 
 # Client (jos avain on saatavilla)
 client: Optional[OpenAI] = None
