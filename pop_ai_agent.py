@@ -19,7 +19,7 @@ import streamlit as st
 from openai import OpenAI, APIStatusError
 
 APP_NAME = "Henry AI advisor -demo"
-DEFAULT_MODEL = "gpt-5-nano"  # halpa ja nopea vaihtoehto
+DEFAULT_MODEL = "gpt-4o-mini"  # halpa ja nopea vaihtoehto
 # Poista mahdollinen model-valinta sivupalkista — aina käytetään DEFAULT_MODEL
 
 # ===== Henryn tausta (ABOUT_ME) =====
