@@ -78,7 +78,8 @@ AI & data -osaamisen kohokohdat:
 - AI governance ja EU AI Act -näkökulma käytännön tekemiseen (riskit, kontrollit, selitettävyys)
 
 Miksi POP Pankki:
-- Haluan tuoda perinteiselle toimialalle konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, AML/fraud-käsittelyn tehostus, sisäinen RAG, ennustava analytiikka) ja rakentaa pysyvät prosessit (MLOps/LLMOps, monitorointi, audit trail).
+- Haluan päästä tuomaan teknologista kehitystä  perinteiselle toimialalle.
+- Halu kehittää konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, ennustava analytiikka, riskien hallinta) ja rakentaa pysyvät prosessit (monitorointia, koneoppimista etc.).
 """
 
 # ===== Työpaikkailmoituksen tiivistelmä =====
