@@ -2,29 +2,26 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit)
+Henry AI advisor -demo (Streamlit) — turvallinen, diagnostiikalla ja varamalleilla
 
-Kevyt demo, jossa "Henry"-agentti keskustelee POP Pankkikeskuksen AI Advisor -roolista.
 - Ei dokumenttien latausta / RAG:ia – vain chatti
-- Persona + ABOUT_ME + työpaikkailmoituksen tiivistelmä syötetään system-promptiin
-- API-avain: sivupalkista, ympäristömuuttujasta tai Streamlit Cloud Secretsista
-- Turvallinen fallback: jos OpenAI ei ole käytettävissä, näytetään paikallinen demovastaus
+- Persona + ABOUT_ME + työpaikkailmoituksen tiivistelmä system-promptissa
+- API-avain luetaan VAIN palvelimelta: Streamlit Secrets tai ympäristömuuttuja
+- Diagnostiikka sivupalkissa: näyttää lähteen (secrets/env) ja testaa yhteyden
+- Mallin varamoodi: yrittää valitsemasi mallin, sitten gpt-4o, sitten gpt-4o-mini
+- Jos mikään ei toimi → näyttää tarkat virheet; viimeisenä paikallinen demovastaus
 """
 
 import os
-import streamlit as st
 from typing import List, Dict, Any, Optional
-from openai import OpenAI
 
-# -------------------------------
-# Perusasetukset
-# -------------------------------
+import streamlit as st
+from openai import OpenAI, APIStatusError
+
 APP_NAME = "Henry AI advisor -demo"
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-4o-mini"  # voit vaihtaa sivupalkista
 
-# -------------------------------
-# Henryn tausta (ABOUT_ME)
-# -------------------------------
+# ===== Henryn tausta (ABOUT_ME) =====
 ABOUT_ME = """
 Nimi: Henry
 Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittaja.
@@ -83,9 +80,7 @@ Miksi POP Pankki:
 - Haluan tuoda perinteiselle toimialalle konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, AML/fraud-käsittelyn tehostus, sisäinen RAG, ennustava analytiikka) ja rakentaa pysyvät prosessit (MLOps/LLMOps, monitorointi, audit trail).
 """
 
-# -------------------------------
-# Työpaikkailmoituksen tiivistelmä
-# -------------------------------
+# ===== Työpaikkailmoituksen tiivistelmä =====
 JOB_AD_SUMMARY = """
 POP Pankkikeskuksen AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista,
 AI-ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen
@@ -93,19 +88,15 @@ juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tu
 AI-asiantuntijuudesta ja koulutuksesta. Eduksi: AI governance ja EU AI Act -osaaminen.
 """
 
-# -------------------------------
-# Persona / toimintatapa
-# -------------------------------
+# ===== Persona =====
 PERSONA = (
     "Olen Henry – haen POP Pankkikeskuksen AI Advisor -rooliin. "
-    "Vastaan minä-muodossa, napakasti ja bisneslähtöisesti. "
+    "Puhun minä-muodossa, napakasti ja bisneslähtöisesti. "
     "Annan konkreettisia askelmerkkejä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act). "
     "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän alla olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
 )
 
-# -------------------------------
-# Pikatools-tekstit
-# -------------------------------
+# ===== Pikatools-tekstit =====
 def bullets_ai_opportunities() -> str:
     return "\n".join([
         "1) Asiakaspalvelu Copilot: summaus, vastaus-ehdotukset, CRM-kirjaus.",
@@ -126,23 +117,19 @@ def bullets_ai_governance() -> str:
         "• Tietoturva & pääsynhallinta: salaisuudet, auditointi.",
     ])
 
-# -------------------------------
-# Avainhaku: sivupalkki, env, secrets
-# -------------------------------
+# ===== Avaimen luku vain palvelinpuolelta =====
 def get_api_key() -> str:
-    # 1) Streamlit Secrets (vain palvelin näkee)
+    # 1) Streamlit Secrets (turvallisin)
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
         if v:
             return v
     except Exception:
         pass
-    # 2) Ympäristömuuttuja (palvelinprosessi)
-    v = os.getenv("OPENAI_API_KEY", "")
-    return v
+    # 2) Ympäristömuuttuja
+    return os.getenv("OPENAI_API_KEY", "")
 
 def get_api_key_source() -> str:
-    # Palauttaa vain lähteen nimen debugia varten (ei itse avainta)
     try:
         if st.secrets.get("OPENAI_API_KEY", ""):
             return "secrets"
@@ -157,13 +144,12 @@ def get_client() -> Optional[OpenAI]:
     if not key:
         return None
     try:
-        return OpenAI(api_key=key)
+        # pieni timeout varmuuden vuoksi
+        return OpenAI(api_key=key, timeout=30.0)
     except Exception:
         return None
 
-# -------------------------------
-# Fallback-vastaus jos API ei käytettävissä
-# -------------------------------
+# ===== Paikallinen fallback-vastaus =====
 def local_demo_response(user_query: str) -> str:
     plan = (
         "### 30/60/90 päivän suunnitelma\n"
@@ -186,41 +172,75 @@ def local_demo_response(user_query: str) -> str:
         "Pyydä syventämään jotakin osa-aluetta tai antamaan konkreettiset KPI:t ja hyväksymiskriteerit."
     )
 
-# -------------------------------
-# Streamlit UI
-# -------------------------------
+# ===== Mallin varamoodi (fallback chain) =====
+def try_chat_with_fallbacks(client: OpenAI, base_model: str, messages: List[Dict[str, str]]) -> str:
+    # kokeilujärjestys: valittu malli -> gpt-4o -> gpt-4o-mini
+    candidates = []
+    if base_model:
+        candidates.append(base_model)
+    for alt in ("gpt-4o", "gpt-4o-mini"):
+        if alt not in candidates:
+            candidates.append(alt)
+
+    last_err = None
+    for m in candidates:
+        try:
+            resp = client.chat.completions.create(
+                model=m,
+                messages=messages,
+                temperature=0.3,
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            last_err = e
+            # Näytä syy käyttäjälle siististi (tämä helpottaa diagia)
+            st.error(f"Chat-virhe mallilla `{m}`: {e.__class__.__name__}: {e}")
+            continue
+
+    # Kaikki mallit epäonnistuivat → heitetään viimeisin virhe ylös
+    raise last_err if last_err else RuntimeError("Tuntematon virhe chat-kutsussa")
+
+# ===== UI =====
 st.set_page_config(page_title=APP_NAME, page_icon="🤖")
 st.title(APP_NAME)
+st.caption("Keskustele 'Henry'-agentin kanssa tästä AI Advisor -roolista.")
 
 with st.sidebar:
     st.subheader("Asetukset")
-
-    # Näytä manuaalinen avainkenttä vain paikallisessa kehityksessä
-    SHOW_KEY_INPUT = os.getenv("SHOW_KEY_INPUT", "0") == "1"
-    api_key_input = ""
-    if SHOW_KEY_INPUT:
-        api_key_input = st.text_input(
-            "OPENAI_API_KEY (vain paikalliseen kehitykseen)",
-            value="",
-            type="password",
-            help="Älä käytä tätä julkisessa demossa. Streamlit Cloudissa käytä Secretsiä."
-        )
-        # älä tallenna avainta session_stateen
-        if api_key_input:
-            os.environ["OPENAI_API_KEY"] = api_key_input  # jää vain palvelinprosessiin
-
+    # valittava malli (ei vaikuta avaimiin)
     model = st.text_input("Chat-malli", value=DEFAULT_MODEL)
+    st.markdown("---")
 
-    # Yksinkertainen tila-ilmoitus ilman paljastuksia
-    key_present = bool(os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", ""))
-    st.info("API-yhteys: ✅ käytössä" if key_present else "API-yhteys: ❌ ei avainta")
+    # Diagnostiikka: mistä avain löytyy
+    src = get_api_key_source()
+    if src == "secrets":
+        st.info("API-yhteys: ✅ löytyi (Streamlit Secrets)")
+    elif src == "env":
+        st.info("API-yhteys: ✅ löytyi (Environment)")
+    else:
+        st.warning("API-yhteys: ❌ ei avainta")
 
-
-st.caption("Keskustele 'Henry'-agentin kanssa tästä AI Advisor -roolista.")
+    # Testaa yhteys napista
+    if st.button("Testaa OpenAI-yhteys"):
+        key = get_api_key()
+        if not key:
+            st.error("Avain puuttuu. Lisää OPENAI_API_KEY Streamlit Secretsiin tai ympäristöön.")
+        else:
+            try:
+                test_client = get_client()
+                r = test_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": "Say OK"}],
+                    max_tokens=4,
+                    temperature=0,
+                )
+                _ = r.choices[0].message.content
+                st.success("OpenAI-yhteys OK ✅")
+            except Exception as e:
+                st.error(f"OpenAI-virhe: {e.__class__.__name__}: {e}")
 
 # Viestipino
 if "messages" not in st.session_state:
-    # Alusta system-prompt: persona + about + job ad + pikatyökalut
     system_prompt = (
         f"{PERSONA}\n\n"
         f"ABOUT_ME:\n{ABOUT_ME.strip()}\n\n"
@@ -248,22 +268,13 @@ if user_msg:
         st.markdown(user_msg)
 
     client = get_client()
-    reply_text = None
-
     if client:
         try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=st.session_state.messages,
-                temperature=0.3,
-            )
-            reply_text = resp.choices[0].message.content
+            reply_text = try_chat_with_fallbacks(client, model, st.session_state.messages)
         except Exception:
-            # Älä kaada demoa – käytä paikallista fallbackia
-            st.warning("OpenAI-chat ei ole käytettävissä (avain/kiintiö/verkko). Näytetään paikallinen demovastaus.")
+            st.warning("OpenAI-chat ei toiminut varamalleillakaan → näytetään paikallinen demovastaus.")
             reply_text = local_demo_response(user_msg)
     else:
-        # Ei avainta → paikallinen demo
         reply_text = local_demo_response(user_msg)
 
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
