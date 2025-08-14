@@ -581,7 +581,7 @@ if not st.session_state.greeted and not st.session_state.messages:
     save_message(st.session_state.conversation_id, "assistant", greeting)
     st.session_state.greeted = True
 
-# Näytä historia ilman system-viestejä
+# ===== Näytä historia (ilman system-viestejä) =====
 for m in st.session_state.messages:
     if m.get("role") == "system":
         continue
