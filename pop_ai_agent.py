@@ -772,11 +772,11 @@ if user_msg:
 
 # Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki (≥ 3 user-viestiä),
 # ja näytetään vain kerran per sessio.
-if (
+   if (
     user_msg
     and not st.session_state.cta_shown
     and (wants_connect(user_msg) or sum(1 for m in st.session_state.messages if m["role"] == "user") >= 3)
 ):
-    st.info("Haluaisitko jatkaa Henrin kanssa suoraan?")
+    st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
     render_connect_cta(user_msg)
     st.session_state.cta_shown = True
