@@ -551,7 +551,13 @@ CV_HOOKS = {
     ],
 }
 
-def build_cv_hook(user_query: str) -> str:
+def build_cv_hook(user_query) -> str:
+    # Kestää None/dict/list → pakotetaan stringiksi
+    if not isinstance(user_query, str):
+        try:
+            user_query = str(user_query)
+        except Exception:
+            user_query = ""
     q = user_query.lower()
     picked: list[str] = []
     for keys, lines in CV_HOOKS.items():
@@ -560,6 +566,7 @@ def build_cv_hook(user_query: str) -> str:
     if not picked:
         picked = ["Agentti Henry:"]
     return " ".join(picked[:2])
+
 
 # ========= Yhteys-CTA =========
 
@@ -755,7 +762,7 @@ else:
     )
 
 # CV-koukku vastauksen alkuun
-hook = build_cv_hook(user_msg)
+hook = build_cv_hook(user_msg or "")
 reply_text = f"_{hook}_\n\n{reply_text}"
 
 # Talleta ja näytä varsinainen assistentin viesti
