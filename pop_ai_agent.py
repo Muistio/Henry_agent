@@ -766,9 +766,7 @@ if user_msg:
             render_kpi_table()
         if "gov" in intents:
             render_governance_flow()
-        # Yhteys
-        if wants_connect(user_msg):
-            # Yhteys vain pyydettäessä
-         if wants_connect(user_msg):
-          st.info("Hienoa! Tässä suorat yhteystavat ↓")
-          render_connect_cta(user_msg)
+        # Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki
+if wants_connect(user_msg) or len([m for m in st.session_state.messages if m["role"] == "user"]) >= 3:
+    st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
+    render_connect_cta(user_msg)
