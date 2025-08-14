@@ -571,7 +571,7 @@ def build_cv_hook(user_query) -> str:
         if any(k in q for k in keys):
             picked.extend(lines[:1])
     if not picked:
-        picked = ["Agentti Henry:"]
+        picked = [""]
     return " ".join(picked[:2])
 
 
