@@ -573,7 +573,7 @@ def transcript_text(conversation_id: int) -> str:
         lines.append(f"[{m['ts']}] {m['role'].upper()}: {m['content']}")
     return "\n".join(lines)
 
-ef render_connect_cta(last_user_msg: str = ""):
+def render_connect_cta(last_user_msg: str = ""):
     if not CONTACT_EMAIL and not CALENDLY_URL:
         st.info("Kontaktitietoja ei ole asetettu (CONTACT_EMAIL / CALENDLY_URL).")
         return
