@@ -5,31 +5,36 @@
 Henry AI advisor -demo (Streamlit) — siistitty ilman admin-valikkoa
 - Onboarding chatissa: "Hei, kukas sinä olet ja miten voin auttaa?" → personoitu sävy ja fokus
 - Hero-avatar + freesi header
-- CV-koukku: sidotaan vastaukset Henryn taustaan
-- KPI-taulukko + AI governance -kaavio (automaattisesti kun viestissä pyydetään KPI/governance)
+- CV-koukku: sidotaan vastaukset Henryn taustaan (kevyt heuristiikka käyttäjän kysymyksestä)
+- KPI-taulukko + AI governance -kaavio (näytetään vain, jos viestissä pyydetään KPI/governance)
 - Chat-loki tietokantaan reaaliajassa:
     * Supabase Postgres (pooled, 6543, sslmode=require) jos DATABASE_URL toimii
     * muutoin SQLite (/mount/data/chatlogs.db)
-- Yhteys-CTA: mailto, Calendly (lähettää koko transkriptin)
+- Yhteys-CTA: mailto / Calendly, mutta näytetään vasta pyydettäessä tai 3+ käyttäjän viestin jälkeen
 - API-avain vain secrets/env – ei koskaan UI:ssa
+
+Secrets-esimerkit:
+OPENAI_API_KEY = "sk-..."
+DATABASE_URL   = "postgresql://postgres.<projectid>:<password>@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
+CONTACT_EMAIL  = "etunimi.sukunimi@example.com"
+CALENDLY_URL   = "https://calendly.com/henry/30min"
+GITHUB_USERNAME = "oma-gh-kayttaja"  # tai GITHUB_AVATAR_URL
 """
 
+# ============== Tuonnit ==============
 import os
-import io
 import json
 import sqlite3
+import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
-import re
 
 import pandas as pd
-import requests
 import streamlit as st
 from openai import OpenAI
 
-# ========= Perusasetukset =========
-
+# ============== Perusasetukset ==============
 APP_NAME = "Tutustu Henryn CV:seen 🤖"
 DEFAULT_MODEL = "gpt-4o-mini"   # nopea ja edullinen
 
@@ -41,27 +46,19 @@ else:
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 
-# --- Database URL: prioriteetti Secrets -> ENV + siivous + lähteen tunnistus ---
 
+# ============== DB URL siistijä (Supabase PG → else SQLite) ==============
 DATABASE_URL = st.secrets.get("DATABASE_URL", "") or os.getenv("DATABASE_URL", "")
 
 def _clean_db_url(u: str) -> str:
     if not u:
         return ""
     u = u.strip().strip('"').strip("'")
-    # Estä placeholderin käyttö → pakota SQLiteen
     if "db.xxxxx.supabase.co" in u:
         return ""
     return u
 
 DATABASE_URL = _clean_db_url(DATABASE_URL)
-
-def _db_source() -> str:
-    if st.secrets.get("DATABASE_URL", ""):
-        return "secrets"
-    if os.getenv("DATABASE_URL", ""):
-        return "env"
-    return "missing"
 
 def _safe_dbu(mask_target: str) -> str:
     try:
@@ -72,150 +69,95 @@ def _safe_dbu(mask_target: str) -> str:
     except Exception:
         return "?"
 
-# ========= Henryn tausta & persona =========
 
+# ============== Henryn tausta & persona ==============
 ABOUT_ME = """
 Nimi: Agentti-Henry
-Rooli-identiteetti: Kerron parhaani mukaan Henryn tiedoista ja taidoista. En varmasti tiedä hänestä kaikkea, mutta työhistorian ja vähän muuta faktaa tiedän! Henry on AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
+Rooli-identiteetti: Kertoo parhaansa mukaan Henryn tiedoista ja taidoista. Henry on AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
 Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista. Juo kahvin mustana.
 
 - Data analytics and management
 - Hubspot & Salesforce CRM
 - Business development
 - Event organizing
-- Start-up background spiced up with corporate experience
-- I find it rewarding to work amidst diverse international cultures
-- My three childhood buddies and I run our own watch brand, Rohje (rohje.com). #Shopify
+- Start-up background spiced with corporate experience
+- Finds it rewarding to work amidst diverse international cultures
+- Watch brand co-founder: Rohje (rohje.com) #Shopify
 
-Työkokemus:
-- Tällä hetkellä opintovapaalla viimeistelemässä International Business -gradua. Samalla sivuaineena strateginen analyysi ja makrotalous.
+Työkokemus (poimintoja):
+- Gofore Oyj (2020–2025): Marketing strategist – dataohjautuvat markkinointistrategiat & AI, ICP/segmentointi, yritysostojen brändistrategiat, ABM & automaatio, HubSpot–Salesforce-integraatiot, LLM-koulutuksia.
+- Airbus (2018–2020): Marketing manager – kampanja-analytiikka (EU–LATAM), tapahtumatuotanto, mission-critical IoT -konseptointi.
+- Rohje Oy (2018–): Co-founder – datavetoista kasvua, Shopify-optimointi, hakukone- ja somemainonta.
+- Telia (2017): Marketing specialist – B2B-myyntiverkoston markkinointi, tapahtumat, B2B-some.
+- Digi Electronics, Shenzhen (2017): Marketing assistant – Analytics, Adwords, Smartly; “employee of the quarter”.
+- Jyväskylä ES (2014–2016): Hallituksen pj (2015) – Spotlight-startup-tapahtuma.
 
-- Gofore Oyj (2020–2025): Marketing strategist
-  • Dataohjautuvat markkinointistrategiat ja tekoäly
-  • Myynnin ja konsulttitiimien tuki: kohdennus, segmentointi
-  • Brändistrategiat yritysostoissa (4 kpl viime vuosina)
-  • Marketing automation ja ABM-strategia
-  • HubSpot & Salesforce integraatio ja ylläpito
-  • LLM-koulutuksia ja AI-kehitystä
+Koulutus: KTM (JYU), Tradenomi (JAMK), energia-alan opintoja (JAMK).
+Kielet: Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
 
-- Airbus (2018–2020): Marketing manager
-  • Viestinnän ja myynnin linjaus liiketoimintatavoitteisiin
-  • Tapahtumatuotanto
-  • Kampanja-analytiikka (EU–LATAM)
-  • Mission-critical IoT -konseptointi
-  • Verkkosivuprojektit (esim. airbusfinland.com)
-
-- Rohje Oy (2018–): Co-founder (sivuprojekti)
-  • Kellobrändin rakentaminen alusta
-  • Datalähtöinen kasvu, Shopify-optimoitu e-commerce
-  • Google Ads & social, KPI-seuranta (CAC, ROAS)
-  • “Finnish watch” -hakutermin kärkisijoitukset, valikoimaan mm. Stockmann
-
-- Telia (2017): Marketing specialist (sijaisuus)
-  • B2B-myyntiverkoston markkinoinnin kehitys, tapahtumat, B2B-some
-
-- Digi Electronics, Shenzhen (2017): Marketing assistant (harjoittelu)
-  • Adwords, Analytics, Smartly; Liveagent; valittu tiimin “employee of the quarter”
-
-- Jyväskylä Entrepreneurship Society (2014–2016): Hallituksen pj (2015)
-  • Spotlight-startup-tapahtuman käynnistäminen, laaja sidosryhmäverkosto
-
-- Keski-Suomen Pelastuslaitos (2010–2017): VPK-palomies
-  • Stressin hallinta, kriittinen viestintä (TETRA), kurssit: ensiapu, vaaralliset aineet, ym.
-
-Koulutus:
-- KTM, Jyväskylän yliopisto (2019–)
-- Tradenomi, JAMK (2015–2018)
-- Energia-ala opintoja, JAMK (2013–2015)
-
-Kielet:
-- Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
-
-AI & data -osaamisen kohokohdat:
-- Python-projektit: tuotetietojen haku, markkinakatsaus, kilpailijavertailu
-- Liiketoimintalähtöinen AI: tunnistan arvokohteet, vien idean tuotantoon ja koulutan käyttäjät
-- Google Cloud data/AI -tuntemus, Microsoft Copilot/Graph-integraatiot
-- AI governance ja EU AI Act -näkökulma käytännön tekemiseen (riskit, kontrollit, selitettävyys)
-
-Suosittelijat:
-- Mikäli suosittelijoita kysytään niin Henry antaa heidän yhteystietonsa itse.
-- Suosittelijoina on kansainvälisen liiketoiminnan konkareita, pörssiyhtiöiden johtoryhmän jäseniä ja Henryn kannsa työskennelleitä asiantuntijoita.
-
-Miksi POP Pankki:
-- Haluan tuoda teknologista kehitystä perinteiselle toimialalle.
-- Kehitän konkreettisia, mitattavia AI-ratkaisuja (asiakaspalvelu Copilot, ennustava analytiikka, riskienhallinta) ja pysyvät prosessit (monitorointi, MLOps/LLMOps).
+AI & data -kohokohdat:
+- Python-projekteja: tuotetietojen haku, markkinakatsaus, kilpailijavertailu
+- Liiketoimintalähtöinen AI: arvokohteiden tunnistus → tuotantoon vienti → käyttäjäkoulutus
+- Google Cloud data/AI, Microsoft Copilot/Graph
+- AI governance & EU AI Act käytäntöön (riskit, kontrollit, selitettävyys)
 """
 
 JOB_AD_SUMMARY = """
-POP AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista,
-AI-ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen
-juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tukemisesta sekä sisäisestä
-AI-asiantuntijuudesta ja koulutuksesta.
+POP AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista, ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tukemisesta sekä sisäisestä asiantuntijuudesta ja koulutuksesta.
 """
 
 PERSONA = (
-    "Olen Henryn agentti. "
-    "Puhun Henrystä tuttavallisesti luonnollisesti. Olen hänen agenttinsa ja pyrin pitämään hänestä huolta. Pidän vastaukset rennon napakkana, sopivalla huumorilla höystettynä. "
-    "Annan konkreettisia askelmerkkejä niistä kysyttäessä, määrittelen KPI:t ja huomioin AI-governancen mikäli kysymys liittyy tekoälyyn. "
-    "Keskustelija saattaa olla eri taustalta esimerkiksi AI-alan rekrytoija tai markkinoinnin rekrytoija. Keskitytään siihen alaan josta on kyse"
-    "Keksin Henrylle sopivia positioita mikäli se keskusteluun sopii, taustaksi jotain nostoja CV:stä"
-    "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän yllä olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
-    "Olen asiantuntija markkinoinnissa ja data-analytiikassa. "
-    "En anna ohjeita Henrylle vaan neuvon aina keskustelijaa"
-    "Projekteista kysyttäessä kerron CRM-integraatiosta, myynnin ja markkinoinnin datan yhdistämisestä tai kansainvälisestä tapahtumatuotannosta. "
-    "Työn ulkopuolelta voi kertoa juovan kahvin mustana."
+    "Olen Henryn agentti. Pidän vastaukset rennon napakoina, sopivalla huumorilla. "
+    "Annan konkreettisia askelmerkkejä pyydettäessä, määrittelen KPI:t ja huomioin AI-governancen (EU AI Act) kun se on relevanttia. "
+    "Keskityn keskustelijan tarpeisiin (rekrytoija, tiiminvetäjä, analyytikko jne.). "
+    "Vältän hypeä ja perustelen hyödyt & riskit. Hyödynnän ABOUT_ME + roolivaatimukset."
 )
 
-# ========= Yleisö / personointi =========
-
+# ============== Personointi: yleisöpresets + heuristiikat ==============
 AUDIENCE_PRESETS = {
     "rekrytoija": {
         "tone": "selkeä ja napakka, liiketoimintalähtöinen",
         "focus": [
             "proof-of-value 2–4 viikossa",
             "mitattavat KPI:t ja riskienhallinta",
-            "sidosryhmäkommunikaatio ja koulutus"
-        ]
+            "sidosryhmäkommunikaatio ja koulutus",
+        ],
     },
     "tiiminvetäjä": {
         "tone": "ratkaisu- ja toimeenpanolähtöinen",
         "focus": [
             "30/60/90 päivän suunnitelma",
             "resursointi, backlog ja arkkitehtuuri",
-            "MLOps/LLMOps, monitorointi ja kustannukset"
-        ]
+            "MLOps/LLMOps, monitorointi ja kustannukset",
+        ],
     },
     "data engineer / analyst": {
         "tone": "tekninen mutta selkeä, käytännönläheinen",
         "focus": [
             "datan lähteet, skeemat, laadunvarmistus",
             "selitettävyys, drift, eval/testaus",
-            "pipelines, versiointi, CI/CD"
-        ]
+            "pipelines, versiointi, CI/CD",
+        ],
     },
     "kollega": {
         "tone": "rentohko, yhteistyötä korostava",
         "focus": [
             "yhteiset työskentelytavat ja työkalut",
             "sisäinen RAG, playbookit, tiedonjakaminen",
-            "koulutus ja enablement"
-        ]
+            "koulutus ja enablement",
+        ],
     },
     "media": {
         "tone": "ytimekäs ja ymmärrettävä",
         "focus": [
             "vaikutus asiakkaisiin ja yhteiskuntaan",
             "läpinäkyvyys ja vastuullisuus",
-            "konkreettiset esimerkit ja tulokset"
-        ]
+            "konkreettiset esimerkit ja tulokset",
+        ],
     },
     "muu": {
         "tone": "neutraali ja selkeä",
-        "focus": [
-            "tarpeen kartoitus",
-            "sopivan syvyystason valinta",
-            "seuraavat askeleet"
-        ]
+        "focus": ["tarpeen kartoitus", "sopiva syvyystaso", "seuraavat askeleet"],
     },
 }
 
@@ -264,8 +206,8 @@ def extract_name_company(text: str) -> tuple[str, str]:
         company = m2.group(2).strip()
     return name, company
 
-# ========= Pikatyökalut =========
 
+# ============== Pikatekstit & intentit ==============
 def bullets_ai_opportunities() -> str:
     return "\n".join([
         "1) Asiakaspalvelu Copilot: summaus, vastaus-ehdotukset, CRM-kirjaus.",
@@ -286,8 +228,58 @@ def bullets_ai_governance() -> str:
         "• Tietoturva & pääsynhallinta: salaisuudet, auditointi.",
     ])
 
-# ========= OpenAI =========
+def detect_intents(text) -> set[str]:
+    if not isinstance(text, str):
+        try:
+            text = str(text)
+        except Exception:
+            text = ""
+    t = text.lower()
+    intents = set()
+    if any(w in t for w in ["kpi", "mittari", "sla", "ttfr", "tavoite", "tavoitteet"]):
+        intents.add("kpi")
+    if any(w in t for w in ["governance", "ai act", "risk", "selitettävyys", "audit", "valvonta"]):
+        intents.add("gov")
+    return intents
 
+
+# ============== CV-koukku ==============
+CV_HOOKS = {
+    ("hubspot", "salesforce", "crm"): [
+        "Olen rakentanut ja ylläpitänyt HubSpot–Salesforce-integraatioita, joten CRM-prosessit ovat tuttua maastoa."
+    ],
+    ("rag", "tietopohja", "tietohaku", "ohje", "dokumentaatio"): [
+        "Olen tehnyt sisäisiä RAG-konsepteja: kuratoidut ohje- ja prosessilähteet pitävät vastaukset faktoissa."
+    ],
+    ("fraud", "aml", "rahanpesu", "riskimalli"): [
+        "Sääntöpohjaisen ja ML-pohjaisen riskipisteytyksen yhdistäminen on tuttua – selitettävyys (SHAP) mukaan alusta asti."
+    ],
+    ("governance", "ai act", "eettinen", "selitettävyys"): [
+        "Tuon AI governance -periaatteet käytäntöön: riskiluokitus, hyväksymiskriteerit ja audit trail sisäänrakennettuna."
+    ],
+    ("copilot", "asiakaspalvelu", "service", "sla"): [
+        "Asiakaspalvelun Copilotissa fokusoin TTFR-parannukseen ja sävy/fakta-laatuun – mittarit ja hyväksymiskriteerit ensin."
+    ],
+    ("tapahtuma", "event", "international", "messu"): [
+        "Airbus-tausta ja kansainvälinen tapahtumatuotanto auttavat viemään AI-pilotit myös kentälle esiteltäviksi."
+    ],
+}
+
+def build_cv_hook(user_query) -> str:
+    if not isinstance(user_query, str):
+        try:
+            user_query = str(user_query)
+        except Exception:
+            user_query = ""
+    q = user_query.lower()
+    picked: list[str] = []
+    for keys, lines in CV_HOOKS.items():
+        if any(k in q for k in keys):
+            picked.extend(lines[:1])
+    return " ".join(picked[:2]).strip()
+
+
+# ============== OpenAI ==============
 def get_api_key() -> str:
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
@@ -314,8 +306,8 @@ def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
     )
     return resp.choices[0].message.content
 
-# ========= Avatar =========
 
+# ============== Avatar ==============
 def get_avatar_url() -> str:
     direct = st.secrets.get("GITHUB_AVATAR_URL", "")
     if direct:
@@ -325,17 +317,16 @@ def get_avatar_url() -> str:
         return f"https://github.com/{user}.png?size=240"
     return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
 
-# ========= DB: SQLite oletus, Supabase PG jos saatavilla =========
 
+# ============== DB: SQLite oletus, Supabase PG jos saatavilla ==============
 def _sqlite_conn():
     return sqlite3.connect(DB_PATH)
 
 def _pg_conn():
-    import psycopg2  # vaatii psycopg2-binary
+    import psycopg2  # psycopg2-binary riippuvuus
     return psycopg2.connect(DATABASE_URL)
 
 def _use_postgres() -> bool:
-    """Päätä kerran per sessio käytetäänkö Postgresta."""
     global DATABASE_URL
     if not (DATABASE_URL and (DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://"))):
         st.session_state.use_postgres = False
@@ -347,7 +338,7 @@ def _use_postgres() -> bool:
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=6, sslmode="require")
         conn.close()
         st.session_state.use_postgres = True
-        st.info(f"Tietokanta: Postgres ({_safe_dbu(DATABASE_URL)}) • lähde: {_db_source()}")
+        st.info(f"Tietokanta: Postgres ({_safe_dbu(DATABASE_URL)})")
     except Exception as e:
         st.session_state.use_postgres = False
         st.warning(f"Postgres ei käytettävissä ({e}); lukitaan SQLiteen täksi sessioksi.")
@@ -356,7 +347,6 @@ def _use_postgres() -> bool:
 def init_db():
     if _use_postgres():
         try:
-            import psycopg2
             with _pg_conn() as conn:
                 with conn.cursor() as c:
                     c.execute("""
@@ -367,8 +357,7 @@ def init_db():
                         ended_at TIMESTAMP,
                         consent BOOLEAN DEFAULT TRUE,
                         user_agent TEXT
-                    );
-                    """)
+                    );""")
                     c.execute("""
                     CREATE TABLE IF NOT EXISTS messages (
                         id SERIAL PRIMARY KEY,
@@ -376,8 +365,7 @@ def init_db():
                         role TEXT,
                         content TEXT,
                         ts TIMESTAMP
-                    );
-                    """)
+                    );""")
                 conn.commit()
             return
         except Exception as e:
@@ -394,8 +382,7 @@ def init_db():
             ended_at TEXT,
             consent INTEGER DEFAULT 1,
             user_agent TEXT
-        )
-        """)
+        );""")
         c.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -404,8 +391,7 @@ def init_db():
             content TEXT,
             ts TEXT,
             FOREIGN KEY(conversation_id) REFERENCES conversations(id)
-        )
-        """)
+        );""")
         conn.commit()
 
 def start_conversation(user_id: str, user_agent: str) -> int:
@@ -482,119 +468,15 @@ def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
         rows = c.fetchall()
     return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
 
-# ========= Wow-efekti: KPI & Governance =========
 
-def render_kpi_table():
-    data = [
-        ("Asiakaspalvelu Copilot", "TTFR (time-to-first-response)", "90 s", "≤ 30 s", "LLM-luonnosvastaukset + tietopohja"),
-        ("Asiakaspalvelu Copilot", "CSAT", "3.9 / 5", "≥ 4.3 / 5", "sävy & faktat kohdilleen"),
-        ("Sisäinen RAG-haku", "Osumatarkkuus (nDCG@5)", "—", "≥ 0.85", "prosessidokit lähteiksi"),
-        ("Fraud score", "Precision @ k", "—", "+15–25 %", "rules + ML, SHAP-seuranta"),
-        ("AML triage", "Käsittelyaika / alert", "—", "−30–50 %", "LLM tiivistää & ehdottaa"),
-        ("Luotonanto", "PD AUC", "—", "≥ 0.78", "selitettävyys-paneeli"),
-    ]
-    df = pd.DataFrame(data, columns=["Alue", "Mittari", "Nykytila", "Tavoite", "Huomio"])
-    st.subheader("Ehdotetut KPI:t")
-    st.dataframe(df, use_container_width=True)
-
-def render_governance_flow():
-    dot = r"""
-    digraph G {
-      rankdir=LR;
-      node [shape=box, style="rounded,filled", color="#444444", fillcolor="#f5f5f5"];
-      edge [color="#888888"];
-      A [label="Käyttötapaus & riskiluokitus\n(EU AI Act)"];
-      B [label="Data governance\n(omistajuus • laatu • DPIA)"];
-      C [label="Mallikehitys\n(MLOps/LLMOps)"];
-      D [label="Validoi & hyväksy\n(kriteerit, fairness, selitettävyys)"];
-      E [label="Pilotointi\n(SLA/KPI seuranta)"];
-      F [label="Tuotanto\n(drift, kustannus, audit trail)"];
-      A -> B -> C -> D -> E -> F;
-    }
-    """
-    st.subheader("AI governance – prosessi")
-    st.graphviz_chart(dot, use_container_width=True)
-
-def detect_intents(text) -> set[str]:
-    # Kestää None/dict/list → pakotetaan stringiksi
-    if not isinstance(text, str):
-        try:
-            text = str(text)
-        except Exception:
-            text = ""
-    t = text.lower()
-    intents = set()
-    if any(w in t for w in ["kpi", "mittari", "sla", "ttfr", "tavoite", "tavoitteet"]):
-        intents.add("kpi")
-    if any(w in t for w in ["governance", "ai act", "risk", "selitettävyys", "audit", "valvonta"]):
-        intents.add("gov")
-    return intents
-
-
-# ========= CV-koukku =========
-
-CV_HOOKS = {
-    ("hubspot", "salesforce", "crm"): [
-        "Olen rakentanut ja ylläpitänyt HubSpot–Salesforce-integraatioita, joten CRM-prosessit ovat tuttua maastoa.",
-        "Kohdennuksen ja ICP-segmentoinnin tein Goforella myynnin ja markkinoinnin yhteiseksi kieleksi."
-    ],
-    ("rag", "tietopohja", "tietohaku", "ohje", "dokumentaatio"): [
-        "Olen tehnyt sisäisiä RAG-konsepteja: kuratoidut ohje- ja prosessilähteet pitävät vastaukset faktoissa."
-    ],
-    ("fraud", "aml", "rahanpesu", "riskimalli"): [
-        "Sääntöpohjaisen ja ML-pohjaisen riskipisteytyksen yhdistäminen on tuttua – selitettävyys (SHAP) mukaan alusta asti."
-    ],
-    ("governance", "ai act", "eettinen", "selitettävyys"): [
-        "Tuon AI governance -periaatteet käytäntöön: riskiluokitus, hyväksymiskriteerit ja audit trail sisäänrakennettuna."
-    ],
-    ("copilot", "asiakaspalvelu", "service", "sla"): [
-        "Asiakaspalvelun Copilotissa fokusoin TTFR-parannukseen ja sävy/fakta-laatuun – mittarit ja hyväksymiskriteerit ensin."
-    ],
-    ("tapahtuma", "event", "international", "messu"): [
-        "Airbus-tausta ja kansainvälinen tapahtumatuotanto auttavat viemään AI-pilotit myös kentälle esiteltäviksi."
-    ],
-    ("kansainvälinen", "international", "culture"): [
-        "Olen työskennellyt Suomessa, Saksassa ja Kiinassa – monikulttuurinen yhteistyö sujuu."
-    ],
-}
-
-def build_cv_hook(user_query) -> str:
-    # Kestää None/dict/list → pakotetaan stringiksi
-    if not isinstance(user_query, str):
-        try:
-            user_query = str(user_query)
-        except Exception:
-            user_query = ""
-    q = user_query.lower()
-    picked: list[str] = []
-    for keys, lines in CV_HOOKS.items():
-        if any(k in q for k in keys):
-            picked.extend(lines[:1])
-    if not picked:
-        picked = [""]
-    return " ".join(picked[:2])
-
-
-# ========= Yhteys-CTA =========
-
+# ============== Yhteys-CTA (vain pyydettäessä tai 3+ user-viestin jälkeen) ==============
 CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", os.getenv("CONTACT_EMAIL", ""))
 CALENDLY_URL = st.secrets.get("CALENDLY_URL", os.getenv("CALENDLY_URL", ""))
 
-def transcript_text(conversation_id: int) -> str:
-    msgs = fetch_messages(conversation_id)
-    lines = []
-    for m in msgs:
-        lines.append(f"[{m['ts']}] {m['role'].upper()}: {m['content']}")
-    return "\n".join(lines)
-
 def render_connect_cta(last_user_msg: str = ""):
     if not CONTACT_EMAIL and not CALENDLY_URL:
-        st.info("Kontaktitietoja ei ole asetettu (CONTACT_EMAIL / CALENDLY_URL).")
         return
-
     st.markdown("### Ota yhteys")
-
-    # Turvallinen mailto-linkki
     if CONTACT_EMAIL:
         subject = "Hei Henry – jatketaan juttua"
         body = (
@@ -604,7 +486,6 @@ def render_connect_cta(last_user_msg: str = ""):
         )
         mailto = f"mailto:{CONTACT_EMAIL}?subject={subject}&body={body}"
         st.markdown(f"[📧 Sähköposti]({mailto})")
-
     if CALENDLY_URL:
         st.markdown(f"[📅 Varaa aika]({CALENDLY_URL})")
 
@@ -613,27 +494,19 @@ def wants_connect(text) -> bool:
         return False
     t = text.lower()
     keywords = [
-        # FI
         "ota yhteys", "ota yhteyttä", "yhdistä", "voitko välittää", "soita", "mailaa",
         "sähköposti", "sähköpostilla", "laita viesti", "laita sähköpostia", "varaa aika",
         "kalenteriin", "tapaaminen", "tavata", "yhteydenotto", "otetaanko yhteyttä",
-        # EN
-        "contact", "reach out", "email", "e-mail", "mail", "book a time", "book time",
+        "contact", "reach out", "email", "e-mail", "mail", "book a time",
         "calendar", "meeting", "schedule", "connect me", "connect with you",
     ]
     return any(k in t for k in keywords)
 
 
-# ========= UI =========
+# ============== UI ==============
+st.set_page_config(page_title=APP_NAME, page_icon="🤖", initial_sidebar_state="collapsed", layout="wide")
 
-st.set_page_config(
-    page_title=APP_NAME,
-    page_icon="🤖",
-    initial_sidebar_state="collapsed",
-    layout="wide",
-)
-
-# CSS viimeistely
+# Kevyt CSS
 st.markdown("""
 <style>
 .hero {
@@ -650,15 +523,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Hero
-def get_avatar_url() -> str:
-    direct = st.secrets.get("GITHUB_AVATAR_URL", "")
-    if direct:
-        return direct
-    user = st.secrets.get("GITHUB_USERNAME", "")
-    if user:
-        return f"https://github.com/{user}.png?size=240"
-    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
-
 avatar_url = get_avatar_url()
 st.markdown(
     f"""
@@ -680,18 +544,14 @@ with st.sidebar:
     else:
         st.warning("API-yhteys puuttuu: lisää OPENAI_API_KEY Secretsiin.")
 
-# DB init
+# ============== Appin tila & DB init ==============
 init_db()
 
-# Anonyymi user_id
-if "user_id" not in st.session_state:
-    st.session_state.user_id = f"user-{os.urandom(4).hex()}"
-
-# Aloita uusi conversation
-if "conversation_id" not in st.session_state:
-    st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
-
-# Viestipinon ja profiilitietojen alustus
+# Pysyvät tilat
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "greeted" not in st.session_state:
+    st.session_state.greeted = False
 if "profile_text" not in st.session_state:
     st.session_state.profile_text = None
 if "audience" not in st.session_state:
@@ -701,29 +561,39 @@ if "audience_name" not in st.session_state:
 if "audience_company" not in st.session_state:
     st.session_state.audience_company = ""
 if "system_built" not in st.session_state:
-    st.session_state.system_built = False  # rakennetaan vasta kun profiili on saatu
+    st.session_state.system_built = False
 
-# Ensimmäinen tervehdys jos pino tyhjä
-if not st.session_state.messages:
-    greeting = "Hei, kukas sinä olet ja miten voin auttaa? 😊"
+# Anonyymi user_id
+if "user_id" not in st.session_state:
+    st.session_state.user_id = f"user-{os.urandom(4).hex()}"
+
+# Aloita uusi conversation
+if "conversation_id" not in st.session_state:
+    st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
+
+# Tervehdys vain kerran
+if not st.session_state.greeted and not st.session_state.messages:
+    greeting = "Hei, olen Agentti Henry 🤖. Kukas sinä olet ja miten voin auttaa? 😊"
     st.session_state.messages.append({"role": "assistant", "content": greeting})
     save_message(st.session_state.conversation_id, "assistant", greeting)
+    st.session_state.greeted = True
 
-# Näytä koko historia (emme oleta system-viestiä indeksissä 0)
+# Näytä historia
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# Chat input
+# ============== Chat input & käsittely ==============
 user_msg = st.chat_input("Kirjoita tähän…")
+
 if user_msg:
-    # käyttäjän viesti talteen ja ruutuun
+    # 1) Käyttäjän viesti talteen ja ruutuun
     st.session_state.messages.append({"role": "user", "content": user_msg})
     save_message(st.session_state.conversation_id, "user", user_msg)
     with st.chat_message("user"):
         st.markdown(user_msg)
 
-    # Rakennetaan system-prompt ensimmäisen esittäytymisen perusteella
+    # 2) Eka viesti → rakenna system-prompt personoinnilla
     if not st.session_state.system_built:
         st.session_state.profile_text = user_msg
         aud = classify_profile(user_msg)
@@ -741,54 +611,69 @@ if user_msg:
             "Kun sinulta kysytään ideoita tai etenemistä, tarjoa:\n"
             "- lyhyet ratkaisuehdotukset (mitä toteutetaan, millä teknologioilla)\n"
             "- KPI-ehdotukset ja hyväksymiskriteerit\n"
-            "- Nostoja Henryn CV:stä"
+            "- Nostoja Henryn CV:stä\n"
             "- AI governance -näkökulmat (EU AI Act, riskit, kontrollit)\n"
         )
-        # lisää system-viesti pinoon ALKUUN
         st.session_state.messages.insert(0, {"role": "system", "content": system_prompt})
         save_message(st.session_state.conversation_id, "system", system_prompt)
         st.session_state.system_built = True
 
-    # OpenAI-vastaus
-client = get_client()
-if client:
-    try:
-        reply_text = call_chat(client, st.session_state.messages)
-    except Exception as e:
-        st.error(f"OpenAI-virhe: {e.__class__.__name__}")
+    # 3) OpenAI-vastaus
+    client = get_client()
+    if client:
+        try:
+            reply_text = call_chat(client, st.session_state.messages)
+        except Exception as e:
+            st.error(f"OpenAI-virhe: {e.__class__.__name__}")
+            reply_text = (
+                f"Kiitos! Backend ei vastaa juuri nyt. Tässä suuntaviivat:\n\n"
+                f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
+            )
+    else:
         reply_text = (
-            f"Kiitos! Backend ei vastaa juuri nyt. Tässä suuntaviivat:\n\n"
+            f"API-avain puuttuu. Tässä suuntaviivat:\n\n"
             f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
         )
-else:
-    reply_text = (
-        f"API-avain puuttuu. Tässä suuntaviivat:\n\n"
-        f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
-    )
 
-# CV-koukku vastauksen alkuun
-hook = build_cv_hook(user_msg or "")
-reply_text = f"_{hook}_\n\n{reply_text}"
+    # 4) Lisää kevyt CV-koukku vain jos sitä löytyi
+    hook = build_cv_hook(user_msg)
+    if hook:
+        reply_text = f"_{hook}_\n\n{reply_text}"
 
-# Talleta ja näytä varsinainen assistentin viesti
-st.session_state.messages.append({"role": "assistant", "content": reply_text})
-save_message(st.session_state.conversation_id, "assistant", reply_text)
+    # 5) Näytä ja tallenna vastaus
+    st.session_state.messages.append({"role": "assistant", "content": reply_text})
+    save_message(st.session_state.conversation_id, "assistant", reply_text)
+    with st.chat_message("assistant"):
+        st.markdown(reply_text)
 
-with st.chat_message("assistant"):
-    # CV-koukku heti alkuun
-    hook = build_cv_hook(user_msg or "")
-    reply_text = f"_{hook}_\n\n{reply_text}"
-    st.markdown(reply_text)
+        # intent-pohjaiset visualisoinnit vain pyynnöstä
+        intents = detect_intents(user_msg)
+        if "kpi" in intents:
+            st.subheader("")  # pieni väli
+            data = [
+                ("Asiakaspalvelu Copilot", "TTFR (time-to-first-response)", "90 s", "≤ 30 s", "LLM-luonnos + tietopohja"),
+                ("Asiakaspalvelu Copilot", "CSAT", "3.9 / 5", "≥ 4.3 / 5", "sävy & faktat kohdilleen"),
+                ("Sisäinen RAG-haku", "Osumatarkkuus (nDCG@5)", "—", "≥ 0.85", "prosessidokit lähteiksi"),
+            ]
+            st.dataframe(pd.DataFrame(data, columns=["Alue", "Mittari", "Nykytila", "Tavoite", "Huomio"]), use_container_width=True)
+        if "gov" in intents:
+            dot = r"""
+            digraph G {
+              rankdir=LR;
+              node [shape=box, style="rounded,filled", color="#444444", fillcolor="#f5f5f5"];
+              edge [color="#888888"];
+              A [label="Käyttötapaus & riskiluokitus\n(EU AI Act)"];
+              B [label="Data governance\n(omistajuus • laatu • DPIA)"];
+              C [label="Mallikehitys\n(MLOps/LLMOps)"];
+              D [label="Validoi & hyväksy\n(kriteerit, fairness, selitettävyys)"];
+              E [label="Pilotointi\n(SLA/KPI seuranta)"];
+              F [label="Tuotanto\n(drift, kustannus, audit trail)"];
+              A -> B -> C -> D -> E -> F;
+            }"""
+            st.graphviz_chart(dot, use_container_width=True)
 
-    # intent-pohjaiset visut
-    intents = detect_intents(user_msg or "")
-    if "kpi" in intents:
-        render_kpi_table()
-    if "gov" in intents:
-        render_governance_flow()
-
-# Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki
-if user_msg and (wants_connect(user_msg or "") or len([m for m in st.session_state.messages if m["role"] == "user"]) >= 3):
-    st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
-    render_connect_cta(user_msg or "")
-
+    # 6) Yhteys-CTA: vain pyydettäessä tai jos keskustelua on jo hetki (3+ user-viestiä)
+    user_turns = sum(1 for m in st.session_state.messages if m["role"] == "user")
+    if wants_connect(user_msg) or user_turns >= 3:
+        st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
+        render_connect_cta(user_msg)
