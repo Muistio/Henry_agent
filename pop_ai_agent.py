@@ -10,7 +10,7 @@ Henry AI advisor -demo (Streamlit) — siistitty ilman admin-valikkoa
 - Chat-loki tietokantaan reaaliajassa:
     * Supabase Postgres (pooled, 6543, sslmode=require) jos DATABASE_URL toimii
     * muutoin SQLite (/mount/data/chatlogs.db)
-- Yhteys-CTA: mailto, Calendly, Slack-ping (lähettää koko transkriptin)
+- Yhteys-CTA: mailto, Calendly (lähettää koko transkriptin)
 - API-avain vain secrets/env – ei koskaan UI:ssa
 """
 
@@ -555,7 +555,6 @@ def build_cv_hook(user_query: str) -> str:
 
 CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", "")
 CALENDLY_URL = st.secrets.get("CALENDLY_URL", "")
-SLACK_WEBHOOK_URL = st.secrets.get("SLACK_WEBHOOK_URL", "")
 
 def transcript_text(conversation_id: int) -> str:
     msgs = fetch_messages(conversation_id)
@@ -564,30 +563,9 @@ def transcript_text(conversation_id: int) -> str:
         lines.append(f"[{m['ts']}] {m['role'].upper()}: {m['content']}")
     return "\n".join(lines)
 
-def send_slack_ping(last_user_msg: str):
-    if not SLACK_WEBHOOK_URL:
-        st.warning("Slack-webhookia ei ole asetettu.")
-        return
-    profile = f"{st.session_state.get('audience','muu')} {st.session_state.get('audience_name','')} @{st.session_state.get('audience_company','')}"
-    transcript = transcript_text(st.session_state.conversation_id)
-    payload = {
-        "text": f"*Henry-demo – uusi yhteydenotto*\n"
-                f"Profiili: {profile}\n"
-                f"Viesti: {last_user_msg}\n\n"
-                f"*Transkriptio:*\n```{transcript[:3500]}```"
-    }
-    try:
-        r = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=8)
-        if r.status_code < 300:
-            st.success("Ping lähetetty Slackiin ✅")
-        else:
-            st.error(f"Slack vastasi koodilla {r.status_code}")
-    except Exception as e:
-        st.error(f"Slack-ping epäonnistui: {e}")
-
 def render_connect_cta(last_user_msg: str = ""):
     st.markdown("### Ota yhteys")
-    cols = st.columns(3)
+    cols = st.columns(2)
     with cols[0]:
         if CONTACT_EMAIL:
             subject = "Hei Henry – jatketaan juttua"
@@ -596,9 +574,6 @@ def render_connect_cta(last_user_msg: str = ""):
     with cols[1]:
         if CALENDLY_URL:
             st.link_button("📅 Varaa aika", CALENDLY_URL)
-    with cols[2]:
-        if st.button("🔔 Ping Henry (Slack)"):
-            send_slack_ping(last_user_msg)
 
 def wants_connect(text: str) -> bool:
     t = text.lower()
@@ -767,5 +742,7 @@ if user_msg:
             render_governance_flow()
         # Yhteys
         if wants_connect(user_msg):
-            st.info("Hienoa! Tässä suorat yhteystavat ↓")
-        render_connect_cta(user_msg)
+            # Yhteys vain pyydettäessä
+         if wants_connect(user_msg):
+          st.info("Hienoa! Tässä suorat yhteystavat ↓")
+          render_connect_cta(user_msg)
