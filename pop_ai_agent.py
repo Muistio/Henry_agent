@@ -547,11 +547,13 @@ with st.sidebar:
 # ============== Appin tila & DB init ==============
 init_db()
 
-# Pysyvät tilat
+# Viestipinon ja profiilitietojen alustus
+if "profile_text" not in st.session_state:
+    st.session_state.profile_text = None
+
+# Viestipinon ja profiilitietojen alustus
 if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "greeted" not in st.session_state:
-    st.session_state.greeted = False
+    st.session_state.messages = []  # varmistetaan että lista on olemassa
 if "profile_text" not in st.session_state:
     st.session_state.profile_text = None
 if "audience" not in st.session_state:
@@ -563,6 +565,7 @@ if "audience_company" not in st.session_state:
 if "system_built" not in st.session_state:
     st.session_state.system_built = False
 
+
 # Anonyymi user_id
 if "user_id" not in st.session_state:
     st.session_state.user_id = f"user-{os.urandom(4).hex()}"
@@ -573,13 +576,15 @@ if "conversation_id" not in st.session_state:
 
 # Tervehdys vain kerran
 if not st.session_state.greeted and not st.session_state.messages:
-    greeting = "Hei, olen Agentti Henry 🤖. Kukas sinä olet ja miten voin auttaa? 😊"
+    greeting = "Hei! Olen **Agentti Henry** – Henryn puolesta vastaava agentti. Kuka olet ja miten voin auttaa? 😊"
     st.session_state.messages.append({"role": "assistant", "content": greeting})
     save_message(st.session_state.conversation_id, "assistant", greeting)
     st.session_state.greeted = True
 
-# Näytä historia
+# Näytä historia ilman system-viestejä
 for m in st.session_state.messages:
+    if m.get("role") == "system":
+        continue
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
@@ -635,10 +640,17 @@ if user_msg:
             f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
         )
 
-    # 4) Lisää kevyt CV-koukku vain jos sitä löytyi
-    hook = build_cv_hook(user_msg)
-    if hook:
-        reply_text = f"_{hook}_\n\n{reply_text}"
+with st.chat_message("assistant"):
+    # lisää CV-koukku juuri ennen renderöintiä
+    hook = build_cv_hook(user_msg or "")
+    final_reply = f"_{hook}_\n\n{reply_text}"
+    st.markdown(final_reply)
+
+    intents = detect_intents(user_msg or "")
+    if "kpi" in intents:
+        render_kpi_table()
+    if "gov" in intents:
+        render_governance_flow()
 
     # 5) Näytä ja tallenna vastaus
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
