@@ -738,45 +738,46 @@ if user_msg:
         st.session_state.system_built = True
 
     # OpenAI-vastaus
-    client = get_client()
-    if client:
-        try:
-            reply_text = call_chat(client, st.session_state.messages)
-        except Exception as e:
-            st.error(f"OpenAI-virhe: {e.__class__.__name__}")
-            reply_text = (
-                f"Kiitos! Backend ei vastaa juuri nyt. Tässä suuntaviivat:\n\n"
-                f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
-            )
-    else:
+client = get_client()
+if client:
+    try:
+        reply_text = call_chat(client, st.session_state.messages)
+    except Exception as e:
+        st.error(f"OpenAI-virhe: {e.__class__.__name__}")
         reply_text = (
-            f"API-avain puuttuu. Tässä suuntaviivat:\n\n"
+            f"Kiitos! Backend ei vastaa juuri nyt. Tässä suuntaviivat:\n\n"
             f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
         )
+else:
+    reply_text = (
+        f"API-avain puuttuu. Tässä suuntaviivat:\n\n"
+        f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
+    )
 
-    # CV-koukku vastauksen alkuun
-    hook = build_cv_hook(user_msg)
-    reply_text = f"_{hook}_\n\n{reply_text}"
+# CV-koukku vastauksen alkuun
+hook = build_cv_hook(user_msg)
+reply_text = f"_{hook}_\n\n{reply_text}"
 
-    st.session_state.messages.append({"role": "assistant", "content": reply_text})
-    save_message(st.session_state.conversation_id, "assistant", reply_text)
+# Talleta ja näytä varsinainen assistentin viesti
+st.session_state.messages.append({"role": "assistant", "content": reply_text})
+save_message(st.session_state.conversation_id, "assistant", reply_text)
 
-    with st.chat_message("assistant"):
+with st.chat_message("assistant"):
     st.markdown(reply_text)
-    # intent-pohjaiset visut
+    # intent-pohjaiset visualisoinnit
     intents = detect_intents(user_msg)
     if "kpi" in intents:
         render_kpi_table()
     if "gov" in intents:
         render_governance_flow()
 
-# Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki (≥ 3 user-viestiä),
-# ja näytetään vain kerran per sessio.
-   if (
+# Yhteys-CTA: näytetään vain jos käyttäjä pyytää TAI kun keskustelua on ollut jo hetki (≥ 3 user-viestiä)
+# ja vain kerran per sessio.
+if (
     user_msg
-    and not st.session_state.cta_shown
+    and not st.session_state.get("cta_shown", False)
     and (wants_connect(user_msg) or sum(1 for m in st.session_state.messages if m["role"] == "user") >= 3)
 ):
-    st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
+    st.info("Haluaisitko jatkaa Henrin kanssa suoraan?")
     render_connect_cta(user_msg)
     st.session_state.cta_shown = True
