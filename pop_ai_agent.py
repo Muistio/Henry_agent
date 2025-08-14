@@ -563,8 +563,8 @@ def build_cv_hook(user_query: str) -> str:
 
 # ========= Yhteys-CTA =========
 
-CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", "")
-CALENDLY_URL = st.secrets.get("CALENDLY_URL", "")
+CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", os.getenv("CONTACT_EMAIL", ""))
+CALENDLY_URL = st.secrets.get("CALENDLY_URL", os.getenv("CALENDLY_URL", ""))
 
 def transcript_text(conversation_id: int) -> str:
     msgs = fetch_messages(conversation_id)
@@ -573,23 +573,39 @@ def transcript_text(conversation_id: int) -> str:
         lines.append(f"[{m['ts']}] {m['role'].upper()}: {m['content']}")
     return "\n".join(lines)
 
-def render_connect_cta(last_user_msg: str = ""):
+ef render_connect_cta(last_user_msg: str = ""):
+    if not CONTACT_EMAIL and not CALENDLY_URL:
+        st.info("Kontaktitietoja ei ole asetettu (CONTACT_EMAIL / CALENDLY_URL).")
+        return
+
     st.markdown("### Ota yhteys")
-    cols = st.columns(2)
-    with cols[0]:
-        if CONTACT_EMAIL:
-            subject = "Hei Henry – jatketaan juttua"
-            body = f"Moi Henry,%0D%0A%0D%0AAsiani: {last_user_msg[:200]}%0D%0A%0D%0ATerveisin, {st.session_state.get('audience_name','')}"
-            st.link_button("📧 Sähköposti", f"mailto:{CONTACT_EMAIL}?subject={subject}&body={body}")
-    with cols[1]:
-        if CALENDLY_URL:
-            st.link_button("📅 Varaa aika", CALENDLY_URL)
+
+    # Turvallinen mailto-linkki
+    if CONTACT_EMAIL:
+        subject = "Hei Henry – jatketaan juttua"
+        body = (
+            f"Moi Henry,%0D%0A%0D%0A"
+            f"Asiani: {last_user_msg[:200]}%0D%0A%0D%0A"
+            f"Terveisin, {st.session_state.get('audience_name','')}"
+        )
+        mailto = f"mailto:{CONTACT_EMAIL}?subject={subject}&body={body}"
+        st.markdown(f"[📧 Sähköposti]({mailto})")
+
+    if CALENDLY_URL:
+        st.markdown(f"[📅 Varaa aika]({CALENDLY_URL})")
 
 def wants_connect(text: str) -> bool:
     t = text.lower()
-    return any(w in t for w in [
-        "ota yhteys", "yhdistä", "voitko välittää", "soita", "mailaa", "sähköposti", "varaa aika", "tapaaminen", "connect"
-    ])
+    keywords = [
+        # FI
+        "ota yhteys", "ota yhteyttä", "yhdistä", "voitko välittää", "soita", "mailaa",
+        "sähköposti", "sähköpostilla", "laita viesti", "laita sähköpostia", "varaa aika",
+        "kalenteriin", "tapaaminen", "tavata", "yhteydenotto", "otetaanko yhteyttä",
+        # EN
+        "contact", "reach out", "email", "e-mail", "mail", "book a time", "book time",
+        "calendar", "meeting", "schedule", "connect me", "connect with you",
+    ]
+    return any(k in t for k in keywords)
 
 # ========= UI =========
 
