@@ -3,24 +3,15 @@
 
 """
 Henry AI advisor -demo (Streamlit) — siistitty ilman admin-valikkoa
-- Onboarding: "kuka olet" (rooli + nimi + organisaatio) → personoitu sävy ja fokus
+- Onboarding chatissa: "Hei, kukas sinä olet ja miten voin auttaa?" → personoitu sävy ja fokus
 - Hero-avatar + freesi header
 - CV-koukku: sidotaan vastaukset Henryn taustaan
-- KPI-taulukko + AI governance -kaavio (automaattisesti, kun viestissä pyydetään KPI/governance)
+- KPI-taulukko + AI governance -kaavio (automaattisesti kun viestissä pyydetään KPI/governance)
 - Chat-loki tietokantaan reaaliajassa:
     * Supabase Postgres (pooled, 6543, sslmode=require) jos DATABASE_URL toimii
     * muutoin SQLite (/mount/data/chatlogs.db)
 - Yhteys-CTA: mailto, Calendly, Slack-ping (lähettää koko transkriptin)
 - API-avain vain secrets/env – ei koskaan UI:ssa
-
-Secrets (esimerkit):
-OPENAI_API_KEY = "sk-..."
-DATABASE_URL = "postgresql://postgres.<projectid>:<password>@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
-CONTACT_EMAIL = "etunimi.sukunimi@example.com"
-CALENDLY_URL = "https://calendly.com/henry/30min"
-SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
-GITHUB_USERNAME = "oma-github-käyttäjä"   # tai:
-# GITHUB_AVATAR_URL = "https://avatars.githubusercontent.com/u/224648509?v=4"
 """
 
 import os
@@ -30,6 +21,7 @@ import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
+import re
 
 import pandas as pd
 import requests
@@ -71,8 +63,6 @@ def _db_source() -> str:
         return "env"
     return "missing"
 
-# Vapaaehtoinen: maskaa host:port statusviestiin
-from urllib.parse import urlparse
 def _safe_dbu(mask_target: str) -> str:
     try:
         u = urlparse(mask_target)
@@ -81,8 +71,6 @@ def _safe_dbu(mask_target: str) -> str:
         return f"{host}:{port}"
     except Exception:
         return "?"
-
-
 
 # ========= Henryn tausta & persona =========
 
@@ -241,6 +229,31 @@ def build_audience_block(audience: str, name: str = "", company: str = "") -> st
         "Mukauta esimerkit ja KPI:t tälle yleisölle sopiviksi.\n"
     )
 
+def classify_profile(text: str) -> str:
+    t = text.lower()
+    if any(w in t for w in ["rekry", "rekrytoija", "recruiter", "hiring"]):
+        return "rekrytoija"
+    if any(w in t for w in ["lead", "vetäjä", "esihenkilö", "manager", "tiiminvetäjä", "team lead"]):
+        return "tiiminvetäjä"
+    if any(w in t for w in ["data engineer", "analyyt", "analyst", "ml", "mlops", "pipeline"]):
+        return "data engineer / analyst"
+    if any(w in t for w in ["toimittaja", "media", "lehti", "press"]):
+        return "media"
+    if any(w in t for w in ["kollega", "työkaveri", "internal", "sisäinen"]):
+        return "kollega"
+    return "muu"
+
+def extract_name_company(text: str) -> tuple[str, str]:
+    name = ""
+    m = re.search(r"\bolen\s+([A-ZÅÄÖ][a-zåäö]+(?:\s+[A-ZÅÄÖ][a-zåäö]+)?)", text)
+    if m:
+        name = m.group(1).strip()
+    company = ""
+    m2 = re.search(r"\b(yrityksestä|firmasta|talosta|yhtiöstä|company|from)\s+([A-Z0-9][\w&\-\s]{1,40})", text, re.I)
+    if m2:
+        company = m2.group(2).strip()
+    return name, company
+
 # ========= Pikatyökalut =========
 
 def bullets_ai_opportunities() -> str:
@@ -268,7 +281,8 @@ def bullets_ai_governance() -> str:
 def get_api_key() -> str:
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
-        if v: return v
+        if v:
+            return v
     except Exception:
         pass
     return os.getenv("OPENAI_API_KEY", "")
@@ -303,15 +317,6 @@ def get_avatar_url() -> str:
 
 # ========= DB: SQLite oletus, Supabase PG jos saatavilla =========
 
-def _safe_dbu(mask_target: str) -> str:
-    try:
-        u = urlparse(mask_target)
-        host = u.hostname or "?"
-        port = u.port or "?"
-        return f"{host}:{port}"
-    except Exception:
-        return "?"
-
 def _sqlite_conn():
     return sqlite3.connect(DB_PATH)
 
@@ -332,7 +337,7 @@ def _use_postgres() -> bool:
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=6, sslmode="require")
         conn.close()
         st.session_state.use_postgres = True
-        st.info(f"Tietokanta: Postgres ({_safe_dbu(DATABASE_URL)})")
+        st.info(f"Tietokanta: Postgres ({_safe_dbu(DATABASE_URL)}) • lähde: {_db_source()}")
     except Exception as e:
         st.session_state.use_postgres = False
         st.warning(f"Postgres ei käytettävissä ({e}); lukitaan SQLiteen täksi sessioksi.")
@@ -627,6 +632,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Hero
+def get_avatar_url() -> str:
+    direct = st.secrets.get("GITHUB_AVATAR_URL", "")
+    if direct:
+        return direct
+    user = st.secrets.get("GITHUB_USERNAME", "")
+    if user:
+        return f"https://github.com/{user}.png?size=240"
+    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
+
 avatar_url = get_avatar_url()
 st.markdown(
     f"""
@@ -659,59 +673,67 @@ if "user_id" not in st.session_state:
 if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
 
-# Onboarding (kysytään kerran)
-if "audience" not in st.session_state:
-    with st.form("onboarding"):
-        st.subheader("Kuka olet? Räätälöin vastaukseni sinulle.")
-        audience = st.selectbox(
-            "Roolini",
-            ["rekrytoija", "tiiminvetäjä", "data engineer / analyst", "kollega", "media", "muu"],
-            index=0
-        )
-        name = st.text_input("Nimesi (valinnainen)")
-        company = st.text_input("Organisaatio (valinnainen)")
-        submitted = st.form_submit_button("Aloita")
-        if submitted:
-            st.session_state.audience = audience
-            st.session_state.audience_name = name
-            st.session_state.audience_company = company
-            st.rerun()
-
-# System-prompt (sis. personoinnin)
+# Viestipinon ja profiilitietojen alustus
 if "messages" not in st.session_state:
-    aud_block = build_audience_block(
-        st.session_state.get("audience", "muu"),
-        st.session_state.get("audience_name", ""),
-        st.session_state.get("audience_company", "")
-    )
-    system_prompt = (
-        f"{PERSONA}\n\n"
-        f"{aud_block}\n"
-        f"ABOUT_ME:\n{ABOUT_ME.strip()}\n\n"
-        f"ROOLIN TIIVISTELMÄ:\n{JOB_AD_SUMMARY.strip()}\n\n"
-        "Kun sinulta kysytään ideoita tai etenemistä, tarjoa:\n"
-        "- lyhyet ratkaisuehdotukset (mitä toteutetaan, millä teknologioilla)\n"
-        "- KPI-ehdotukset ja hyväksymiskriteerit\n"
-        "- 30/60/90 päivän askelmerkit\n"
-        "- AI governance -näkökulmat (EU AI Act, riskit, kontrollit)\n"
-    )
-    st.session_state.messages: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
-    save_message(st.session_state.conversation_id, "system", system_prompt)
+    st.session_state.messages = []  # tyhjä pino aluksi
+if "profile_text" not in st.session_state:
+    st.session_state.profile_text = None
+if "audience" not in st.session_state:
+    st.session_state.audience = None
+if "audience_name" not in st.session_state:
+    st.session_state.audience_name = ""
+if "audience_company" not in st.session_state:
+    st.session_state.audience_company = ""
+if "system_built" not in st.session_state:
+    st.session_state.system_built = False  # rakennetaan vasta kun profiili on saatu
 
-# Näytä historia (ilman system-viestiä)
-for m in st.session_state.messages[1:]:
+# Ensimmäinen tervehdys jos pino tyhjä
+if not st.session_state.messages:
+    greeting = "Hei, kukas sinä olet ja miten voin auttaa? 😊"
+    st.session_state.messages.append({"role": "assistant", "content": greeting})
+    save_message(st.session_state.conversation_id, "assistant", greeting)
+
+# Näytä koko historia (emme oleta system-viestiä indeksissä 0)
+for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
 # Chat input
-user_msg = st.chat_input("Kysy lisää rooleista, projekteista tai mistä hyvänsä")
+user_msg = st.chat_input("Kirjoita tähän…")
 if user_msg:
+    # käyttäjän viesti talteen ja ruutuun
     st.session_state.messages.append({"role": "user", "content": user_msg})
     save_message(st.session_state.conversation_id, "user", user_msg)
-
     with st.chat_message("user"):
         st.markdown(user_msg)
 
+    # Rakennetaan system-prompt ensimmäisen esittäytymisen perusteella
+    if not st.session_state.system_built:
+        st.session_state.profile_text = user_msg
+        aud = classify_profile(user_msg)
+        name, company = extract_name_company(user_msg)
+        st.session_state.audience = aud
+        st.session_state.audience_name = name
+        st.session_state.audience_company = company
+
+        aud_block = build_audience_block(aud, name, company)
+        system_prompt = (
+            f"{PERSONA}\n\n"
+            f"{aud_block}\n"
+            f"ABOUT_ME:\n{ABOUT_ME.strip()}\n\n"
+            f"ROOLIN TIIVISTELMÄ:\n{JOB_AD_SUMMARY.strip()}\n\n"
+            "Kun sinulta kysytään ideoita tai etenemistä, tarjoa:\n"
+            "- lyhyet ratkaisuehdotukset (mitä toteutetaan, millä teknologioilla)\n"
+            "- KPI-ehdotukset ja hyväksymiskriteerit\n"
+            "- 30/60/90 päivän askelmerkit\n"
+            "- AI governance -näkökulmat (EU AI Act, riskit, kontrollit)\n"
+        )
+        # lisää system-viesti pinoon ALKUUN
+        st.session_state.messages.insert(0, {"role": "system", "content": system_prompt})
+        save_message(st.session_state.conversation_id, "system", system_prompt)
+        st.session_state.system_built = True
+
+    # OpenAI-vastaus
     client = get_client()
     if client:
         try:
