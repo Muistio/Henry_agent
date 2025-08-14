@@ -594,7 +594,9 @@ def render_connect_cta(last_user_msg: str = ""):
     if CALENDLY_URL:
         st.markdown(f"[📅 Varaa aika]({CALENDLY_URL})")
 
-def wants_connect(text: str) -> bool:
+def wants_connect(text) -> bool:
+    if not isinstance(text, str) or not text:
+        return False
     t = text.lower()
     keywords = [
         # FI
@@ -606,6 +608,7 @@ def wants_connect(text: str) -> bool:
         "calendar", "meeting", "schedule", "connect me", "connect with you",
     ]
     return any(k in t for k in keywords)
+
 
 # ========= UI =========
 
@@ -759,14 +762,21 @@ if user_msg:
     save_message(st.session_state.conversation_id, "assistant", reply_text)
 
     with st.chat_message("assistant"):
-        st.markdown(reply_text)
-        # intent-pohjaiset visut
-        intents = detect_intents(user_msg)
-        if "kpi" in intents:
-            render_kpi_table()
-        if "gov" in intents:
-            render_governance_flow()
-        # Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki
-if wants_connect(user_msg) or len([m for m in st.session_state.messages if m["role"] == "user"]) >= 3:
-    st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
+    st.markdown(reply_text)
+    # intent-pohjaiset visut
+    intents = detect_intents(user_msg)
+    if "kpi" in intents:
+        render_kpi_table()
+    if "gov" in intents:
+        render_governance_flow()
+
+# Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki (≥ 3 user-viestiä),
+# ja näytetään vain kerran per sessio.
+if (
+    user_msg
+    and not st.session_state.cta_shown
+    and (wants_connect(user_msg) or sum(1 for m in st.session_state.messages if m["role"] == "user") >= 3)
+):
+    st.info("Haluaisitko jatkaa Henrin kanssa suoraan?")
     render_connect_cta(user_msg)
+    st.session_state.cta_shown = True
