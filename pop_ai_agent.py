@@ -49,7 +49,40 @@ else:
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "") or st.secrets.get("DATABASE_URL", "")
+# --- Database URL: prioriteetti Secrets -> ENV + siivous + lähteen tunnistus ---
+
+DATABASE_URL = st.secrets.get("DATABASE_URL", "") or os.getenv("DATABASE_URL", "")
+
+def _clean_db_url(u: str) -> str:
+    if not u:
+        return ""
+    u = u.strip().strip('"').strip("'")
+    # Estä placeholderin käyttö → pakota SQLiteen
+    if "db.xxxxx.supabase.co" in u:
+        return ""
+    return u
+
+DATABASE_URL = _clean_db_url(DATABASE_URL)
+
+def _db_source() -> str:
+    if st.secrets.get("DATABASE_URL", ""):
+        return "secrets"
+    if os.getenv("DATABASE_URL", ""):
+        return "env"
+    return "missing"
+
+# Vapaaehtoinen: maskaa host:port statusviestiin
+from urllib.parse import urlparse
+def _safe_dbu(mask_target: str) -> str:
+    try:
+        u = urlparse(mask_target)
+        host = u.hostname or "?"
+        port = u.port or "?"
+        return f"{host}:{port}"
+    except Exception:
+        return "?"
+
+
 
 # ========= Henryn tausta & persona =========
 
