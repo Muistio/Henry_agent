@@ -370,7 +370,7 @@ def init_db():
             return
         except Exception as e:
             st.session_state.use_postgres = False
-            st.warning(f"PG-init epäonnistui ({e}); siirrytään SQLiteen.")
+            st.warning(f"PG-init epäonnistui ({e}); siirrytään SQLiteen.")x
     # SQLite
     with _sqlite_conn() as conn:
         c = conn.cursor()
@@ -588,7 +588,7 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# ============== Chat input & käsittely ==============
+# ===== Chat input & käsittely =====
 user_msg = st.chat_input("Kirjoita tähän…")
 
 if user_msg:
@@ -640,32 +640,20 @@ if user_msg:
             f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
         )
 
-with st.chat_message("assistant"):
-    # lisää CV-koukku juuri ennen renderöintiä
+    # 4) Renderöi yksi (1) assistenttivastaus koukulla ja intentti-visuilla
     hook = build_cv_hook(user_msg or "")
-    final_reply = f"_{hook}_\n\n{reply_text}"
-    st.markdown(final_reply)
+    final_reply = f"_{hook}_\n\n{reply_text}" if hook else reply_text
 
-    intents = detect_intents(user_msg or "")
-    if "kpi" in intents:
-        render_kpi_table()
-    if "gov" in intents:
-        render_governance_flow()
-
-    # 5) Näytä ja tallenna vastaus
-    st.session_state.messages.append({"role": "assistant", "content": reply_text})
-    save_message(st.session_state.conversation_id, "assistant", reply_text)
     with st.chat_message("assistant"):
-        st.markdown(reply_text)
+        st.markdown(final_reply)
 
-        # intent-pohjaiset visualisoinnit vain pyynnöstä
-        intents = detect_intents(user_msg)
+        # intent-pohjaiset visualisoinnit
+        intents = detect_intents(user_msg or "")
         if "kpi" in intents:
-            st.subheader("")  # pieni väli
             data = [
                 ("Asiakaspalvelu Copilot", "TTFR (time-to-first-response)", "90 s", "≤ 30 s", "LLM-luonnos + tietopohja"),
                 ("Asiakaspalvelu Copilot", "CSAT", "3.9 / 5", "≥ 4.3 / 5", "sävy & faktat kohdilleen"),
-                ("Sisäinen RAG-haku", "Osumatarkkuus (nDCG@5)", "—", "≥ 0.85", "prosessidokit lähteiksi"),
+                ("Sisäinen RAG-haku", "nDCG@5", "—", "≥ 0.85", "prosessidokit lähteiksi"),
             ]
             st.dataframe(pd.DataFrame(data, columns=["Alue", "Mittari", "Nykytila", "Tavoite", "Huomio"]), use_container_width=True)
         if "gov" in intents:
@@ -684,7 +672,11 @@ with st.chat_message("assistant"):
             }"""
             st.graphviz_chart(dot, use_container_width=True)
 
-    # 6) Yhteys-CTA: vain pyydettäessä tai jos keskustelua on jo hetki (3+ user-viestiä)
+    # 5) Talleta juuri näytetty vastaus (sama kuin ruudulla)
+    st.session_state.messages.append({"role": "assistant", "content": final_reply})
+    save_message(st.session_state.conversation_id, "assistant", final_reply)
+
+    # 6) Yhteys-CTA: vain pyydettäessä tai jos keskustelua on ollut jo hetki (3+ user-viestiä)
     user_turns = sum(1 for m in st.session_state.messages if m["role"] == "user")
     if wants_connect(user_msg) or user_turns >= 3:
         st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
