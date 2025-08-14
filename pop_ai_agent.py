@@ -607,14 +607,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Status-sivupalkki (vain infoa)
+# Status-sivupalkki (vain OpenAI API -info)
 with st.sidebar:
-    if _use_postgres():
-        st.success(f"Yhteys OK (Postgres {_safe_dbu(DATABASE_URL)})")
-    else:
-        st.info("Yhteys OK (SQLite /mount/data/chatlogs.db)")
-    if get_client():
     st.subheader("Status")
+    if get_client():
         st.info("Henry-agentti linjoilla: ✅")
     else:
         st.warning("API-yhteys puuttuu: lisää OPENAI_API_KEY Secretsiin.")
