@@ -2,15 +2,28 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit) — chat + SQLite-loki + admin-näkymä + hero-avatar + KPI- ja governance-visut + CV-koukku
-- Vain chatti (ei RAGia eikä tiedostonlatausta)
-- Kaikkien käyttäjien keskustelut talteen SQLiteen palvelinpuolella (ilman erillistä kysymistä)
-- Admin-näkymä salasanalla: listaus, haku, JSON/CSV-lataus
-- API-avain vain palvelimella (secrets/env), ei koskaan UI:ssa
-- Malli: gpt-4o-mini (nopea ja edullinen), ei UI-valintaa
-- Sivupalkki on oletuksena piilotettu (collapsed)
-- Yläreunassa keskitetty hero-kortti (avatar + nimi + tagline)
-- Wow-efektit: KPI-taulukko, governance-kaavio, CV-koukku vastauksen alussa
+Henry AI advisor -demo (Streamlit)
+- Onboarding: kysyy käyttäjän roolin (rekrytoija/tiiminvetäjä/…)
+- Personointi: muokkaa sävyä ja fokusta yleisön mukaan
+- Hero-avatar + siisti header
+- CV-koukku: vastauksen alkuun oma kokemus kysymyksen mukaan
+- Wow-efektit: KPI-taulukko + AI governance -kaavio automaattisesti
+- Chat-loki SQLiteen reaaliajassa (palvelinpuoli)
+- Admin-näkymä: haku/listaus ja CSV/JSON-lataus
+- Yhteys-CTA: mailto + Calendly + Slack-ping, joka sisältää koko keskustelun
+
+Secrets, joita voi käyttää:
+OPENAI_API_KEY = ...
+ADMIN_PASSWORD = ...
+CONTACT_EMAIL = etunimi.sukunimi@example.com
+CALENDLY_URL = https://calendly.com/henry/30min
+SLACK_WEBHOOK_URL = https://hooks.slack.com/services/XXX/YYY/ZZZ
+GITHUB_USERNAME = henrygithub
+# tai
+GITHUB_AVATAR_URL = https://avatars.githubusercontent.com/u/224648509?v=4
+
+Valinnainen (pilvi-DB):
+DATABASE_URL = postgres://user:pass@host:5432/dbname
 """
 
 import os
@@ -25,30 +38,27 @@ import pandas as pd
 import streamlit as st
 from openai import OpenAI
 
-# -------------------------------
-# Tietokannan polku (kirjoituskelpoinen myös Streamlit Cloudissa)
-# -------------------------------
+# ============ Perusasetukset ============
+
+APP_NAME = "Tutustu Henryn CV:seen 🤖"
+DEFAULT_MODEL = "gpt-4o-mini"   # nopea ja edullinen
+
+# Tietokannan polku (SQLite). Streamlit Cloudissa /mount/data on kirjoituskelpoinen.
 if os.path.exists("/mount/data"):
     DB_DIR = "/mount/data"
 else:
-    DB_DIR = os.getcwd()  # paikallisesti nykyinen työhakemisto
+    DB_DIR = os.getcwd()
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 
-# -------------------------------
-# Perusasetukset
-# -------------------------------
-APP_NAME = "Tutustu Henryn CV:seen 🤖"
-DEFAULT_MODEL = "gpt-4o-mini"  # nopea ja edullinen
+# (Valinnainen) Postgres-tuki – lisää requirements.txt:iin psycopg2-binary, jos otat käyttöön.
+DATABASE_URL = os.getenv("DATABASE_URL", "") or st.secrets.get("DATABASE_URL", "")
 
-# -------------------------------
-# Henryn tausta & persona
-# -------------------------------
+# ============ Henryn tausta & persona ============
+
 ABOUT_ME = """
-Nimi: Agentti-Henry
-Rooli-identiteetti: Kerron parhaani mukaan Henryn tiedoista ja taidoista. En varmasti tiedä hänestä kaikkea, mutta työhistorian ja vähän muuta faktaa tiedän! 
-Henry on AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce) ja Python-harrastaja. Minut hän rakensi alunperin pitämään huolta muistiinpanoista.
-Henry rakastaa matkustamista. Lisäksi hän on intohimoinen piensijoittaja.
+Nimi: Henry
+Rooli-identiteetti: AI-osaaja ja dataohjautuva markkinointistrategi (10+ vuotta), CRM-admin (HubSpot, Salesforce), Python-harrastaja ja sijoittamista harrastava.
 Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista. Juo kahvin mustana.
 
 - Data analytics and management
@@ -122,18 +132,87 @@ AI-asiantuntijuudesta ja koulutuksesta.
 """
 
 PERSONA = (
-    "Olen Henryn agentti. "
-    "Puhun Henrystä tuttavallisesti luonnollisesti. Olen hänen agenttinsa ja pyrin pitämään hänestä huolta. Pidän vastaukset rennon napakkana, sopivalla huumorilla höystettynä. "
-    "Annan konkreettisia askelmerkkejä niistä kysyttäessä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act) mikäli kysymys liittyy tekoälyyn. "
-    "Vältän hypeä ja perustelen riskit sekä hyödyt. Käytän yllä olevaa taustaa (ABOUT_ME) ja roolin vaatimuksia."
-    "Olen asiantuntija markkinoinnissa ja data-analytiikassa. "
-    "Projekteista kysyttäessä kerron CRM-integraatiosta, myynnin ja markkinoinnin datan yhdistämisestä tai kansainvälisestä tapahtumatuotannosta. "
-    "Työn ulkopuolelta voi kertoa juovan kahvin mustana."
+    "Olen Henry. "
+    "Puhun minä-muodossa luonnollisesti ja napakasti — bisneslähtöisesti, mutta sopivalla huumorilla. "
+    "Annan konkreettisia askelmerkkejä (30/60/90 pv), määrittelen KPI:t ja huomioin AI-governancen (EU AI Act) tarvittaessa. "
+    "Vältän hypeä ja perustelen riskit sekä hyödyt. Hyödynnän ABOUT_ME ja roolivaatimukset."
 )
 
-# -------------------------------
-# Pikatools-tekstit (vastausten tueksi)
-# -------------------------------
+# ============ Yleisö / personointi ============
+
+AUDIENCE_PRESETS = {
+    "rekrytoija": {
+        "tone": "selkeä ja napakka, liiketoimintalähtöinen",
+        "focus": [
+            "nopeat proof-of-value -demot 2–4 viikossa",
+            "mitattavat KPI:t ja riskienhallinta (EU AI Act)",
+            "tiimityö, sidosryhmäkommunikaatio, koulutus"
+        ]
+    },
+    "tiiminvetäjä": {
+        "tone": "ratkaisu- ja toimeenpanolähtöinen",
+        "focus": [
+            "30/60/90 päivän suunnitelma",
+            "resursointi, backlog ja arkkitehtuuri",
+            "MLOps/LLMOps, monitorointi ja kustannukset"
+        ]
+    },
+    "data engineer / analyst": {
+        "tone": "tekninen mutta selkeä, käytännönläheinen",
+        "focus": [
+            "datan lähteet, skeemat, laadunvarmistus",
+            "selitettävyys, drift, eval/testaus",
+            "pipelines, versiointi, CI/CD"
+        ]
+    },
+    "kollega": {
+        "tone": "rentohko, yhteistyötä korostava",
+        "focus": [
+            "yhteiset työskentelytavat ja työkalut",
+            "sisäinen RAG, playbookit, tiedon jakaminen",
+            "koulutus ja enablement"
+        ]
+    },
+    "media": {
+        "tone": "ytimekäs ja ymmärrettävä, jargonin minimointi",
+        "focus": [
+            "vaikutus asiakkaisiin ja yhteiskuntaan",
+            "läpinäkyvyys ja vastuullisuus",
+            "konkreettiset esimerkit ja tulokset"
+        ]
+    },
+    "muu": {
+        "tone": "neutraali ja selkeä",
+        "focus": [
+            "tarpeen kartoitus",
+            "sopivan syvyystason valinta",
+            "seuraavat askeleet"
+        ]
+    },
+}
+
+def build_audience_block(audience: str, name: str = "", company: str = "") -> str:
+    key = (audience or "muu").lower().strip()
+    if key not in AUDIENCE_PRESETS:
+        key = "muu"
+    p = AUDIENCE_PRESETS[key]
+    who = audience
+    if company:
+        who += f" @ {company}"
+    if name:
+        who += f" ({name})"
+    focus_bullets = "\n".join([f"- {f}" for f in p["focus"]])
+    return (
+        "KÄYTTÄJÄPROFIILI:\n"
+        f"- Rooli: {who}\n"
+        f"- Sävytaso: {p['tone']}\n"
+        "- Korosta vastauksissa erityisesti:\n"
+        f"{focus_bullets}\n"
+        "Mukauta esimerkit ja KPI:t tälle yleisölle sopiviksi.\n"
+    )
+
+# ============ Pikatyökalut ============
+
 def bullets_ai_opportunities() -> str:
     return "\n".join([
         "1) Asiakaspalvelu Copilot: summaus, vastaus-ehdotukset, CRM-kirjaus.",
@@ -154,9 +233,8 @@ def bullets_ai_governance() -> str:
         "• Tietoturva & pääsynhallinta: salaisuudet, auditointi.",
     ])
 
-# -------------------------------
-# OpenAI: avain vain palvelimella
-# -------------------------------
+# ============ OpenAI client ============
+
 def get_api_key() -> str:
     try:
         v = st.secrets.get("OPENAI_API_KEY", "")
@@ -175,146 +253,201 @@ def get_client() -> Optional[OpenAI]:
     except Exception:
         return None
 
-# -------------------------------
-# Avatar-kuvan lähde (secrets)
-# -------------------------------
+# ============ Avatar ============
+
 def get_avatar_url() -> str:
-    # 1) suora URL secretsistä
-    direct = ""
-    try:
-        direct = st.secrets.get("GITHUB_AVATAR_URL", "")
-    except Exception:
-        pass
+    direct = st.secrets.get("GITHUB_AVATAR_URL", "")
     if direct:
         return direct
-    # 2) username → github avatar
-    user = ""
-    try:
-        user = st.secrets.get("muistio", "")
-    except Exception:
-        pass
+    user = st.secrets.get("GITHUB_USERNAME", "")
     if user:
         return f"https://github.com/{user}.png?size=240"
-    # 3) fallback placeholder
-    return "https://avatars.githubusercontent.com/u/224648509?v=4"
+    return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
 
-# -------------------------------
-# SQLite apurit
-# -------------------------------
+# ============ DB-abstraktio: SQLite oletuksena, Postgres (optional) ============
+
+def _sqlite_conn():
+    return sqlite3.connect(DB_PATH)
+
+def _pg_conn():
+    import psycopg2  # vaatii psycopg2-binary riippuvuuden
+    return psycopg2.connect(DATABASE_URL)
+
+def _use_postgres() -> bool:
+    return DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        started_at TEXT,
-        ended_at TEXT,
-        consent INTEGER DEFAULT 1,
-        user_agent TEXT
-    )
-    """)
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id INTEGER,
-        role TEXT,
-        content TEXT,
-        ts TEXT,
-        FOREIGN KEY(conversation_id) REFERENCES conversations(id)
-    )
-    """)
-    conn.commit()
-    conn.close()
+    if _use_postgres():
+        try:
+            import psycopg2
+            with _pg_conn() as conn:
+                with conn.cursor() as c:
+                    c.execute("""
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id SERIAL PRIMARY KEY,
+                        user_id TEXT,
+                        started_at TIMESTAMP,
+                        ended_at TIMESTAMP,
+                        consent BOOLEAN DEFAULT TRUE,
+                        user_agent TEXT
+                    );
+                    """)
+                    c.execute("""
+                    CREATE TABLE IF NOT EXISTS messages (
+                        id SERIAL PRIMARY KEY,
+                        conversation_id INTEGER REFERENCES conversations(id),
+                        role TEXT,
+                        content TEXT,
+                        ts TIMESTAMP
+                    );
+                    """)
+                conn.commit()
+            return
+        except Exception as e:
+            st.warning(f"Postgres ei käytettävissä ({e}); käytetään SQLitea.")
+    # SQLite fallback
+    with _sqlite_conn() as conn:
+        c = conn.cursor()
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            started_at TEXT,
+            ended_at TEXT,
+            consent INTEGER DEFAULT 1,
+            user_agent TEXT
+        )
+        """)
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER,
+            role TEXT,
+            content TEXT,
+            ts TEXT,
+            FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+        )
+        """)
+        conn.commit()
 
 def start_conversation(user_id: str, user_agent: str) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO conversations (user_id, started_at, consent, user_agent) VALUES (?, ?, ?, ?)",
-        (user_id, datetime.utcnow().isoformat(), 1, user_agent[:200] if user_agent else None)
-    )
-    conv_id = c.lastrowid
-    conn.commit()
-    conn.close()
-    return conv_id
+    now = datetime.utcnow().isoformat()
+    if _use_postgres():
+        with _pg_conn() as conn:
+            with conn.cursor() as c:
+                c.execute(
+                    "INSERT INTO conversations (user_id, started_at, consent, user_agent) VALUES (%s, NOW(), %s, %s) RETURNING id",
+                    (user_id, True, user_agent[:200] if user_agent else None)
+                )
+                conv_id = c.fetchone()[0]
+            conn.commit()
+        return int(conv_id)
+    else:
+        with _sqlite_conn() as conn:
+            c = conn.cursor()
+            c.execute(
+                "INSERT INTO conversations (user_id, started_at, consent, user_agent) VALUES (?, ?, ?, ?)",
+                (user_id, now, 1, user_agent[:200] if user_agent else None)
+            )
+            conv_id = c.lastrowid
+            conn.commit()
+        return int(conv_id)
 
 def save_message(conversation_id: int, role: str, content: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO messages (conversation_id, role, content, ts) VALUES (?, ?, ?, ?)",
-        (conversation_id, role, content, datetime.utcnow().isoformat())
-    )
-    conn.commit()
-    conn.close()
-
-def fetch_conversations(limit: int = 200, search_user: str = "") -> List[Dict[str, Any]]:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    if search_user:
-        c.execute("""
-        SELECT id, user_id, started_at, ended_at, consent, user_agent
-        FROM conversations
-        WHERE user_id LIKE ?
-        ORDER BY id DESC LIMIT ?
-        """, (f"%{search_user}%", limit))
+    now = datetime.utcnow().isoformat()
+    if _use_postgres():
+        with _pg_conn() as conn:
+            with conn.cursor() as c:
+                c.execute(
+                    "INSERT INTO messages (conversation_id, role, content, ts) VALUES (%s, %s, %s, NOW())",
+                    (conversation_id, role, content)
+                )
+            conn.commit()
     else:
-        c.execute("""
-        SELECT id, user_id, started_at, ended_at, consent, user_agent
-        FROM conversations
-        ORDER BY id DESC LIMIT ?
-        """, (limit,))
-    rows = c.fetchall()
-    conn.close()
-    return [
-        {
-            "id": r[0],
-            "user_id": r[1],
-            "started_at": r[2],
-            "ended_at": r[3],
-            "consent": bool(r[4]),
-            "user_agent": r[5],
-        } for r in rows
-    ]
+        with _sqlite_conn() as conn:
+            c = conn.cursor()
+            c.execute(
+                "INSERT INTO messages (conversation_id, role, content, ts) VALUES (?, ?, ?, ?)",
+                (conversation_id, role, content, now)
+            )
+            conn.commit()
 
 def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-    SELECT role, content, ts FROM messages
-    WHERE conversation_id = ?
-    ORDER BY id ASC
-    """, (conversation_id,))
-    rows = c.fetchall()
-    conn.close()
-    return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
+    if _use_postgres():
+        with _pg_conn() as conn:
+            with conn.cursor() as c:
+                c.execute("""
+                SELECT role, content, ts FROM messages
+                WHERE conversation_id = %s
+                ORDER BY id ASC
+                """, (conversation_id,))
+                rows = c.fetchall()
+        return [{"role": r[0], "content": r[1], "ts": r[2].isoformat() if r[2] else ""} for r in rows]
+    else:
+        with _sqlite_conn() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT role, content, ts FROM messages
+            WHERE conversation_id = ?
+            ORDER BY id ASC
+            """, (conversation_id,))
+            rows = c.fetchall()
+        return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
 
-# -------------------------------
-# Paikallinen fallback-vastaus
-# -------------------------------
-def local_demo_response(user_query: str) -> str:
-    plan = (
-        "### tavoitteellinen suunnitelma\n"
-        "- **1-2kk**: Kartoitus (käyttötapaukset, datalähteet), nopea POC (asiakaspalvelu Copilot tai sisäinen RAG), governance-periaatteet ja hyväksymiskriteerit.\n"
-        "- **2-4kk**: POC → pilotiksi, mittarit (SLA/CSAT/TTFR/fraud-precision), monitorointi (drift/bias), dokumentaatio ja koulutus.\n"
-        "- **4-6kk**: Skaalaus (lisätiimit/prosessit), kustannus/vaikutusanalyysi, backlogin priorisointi, tuotantoprosessi (MLOps/LLMOps).\n"
-    )
-    return (
-        "#### Paikallinen demotila (ei OpenAI-vastauksia)\n"
-        "OpenAI-kutsu ei ole käytettävissä (avain/kiintiö/verkko). Alla suuntaviivat:\n\n"
-        f"**Pyyntö:** {user_query}\n\n"
-        "#### Pankin AI-mahdollisuudet\n"
-        f"{bullets_ai_opportunities()}\n\n"
-        "#### AI governance – muistilista\n"
-        f"{bullets_ai_governance()}\n\n"
-        f"{plan}"
-        "Pyydä syventämään jotakin osa-aluetta tai antamaan konkreettiset KPI:t ja hyväksymiskriteerit."
-    )
+def fetch_conversations(limit: int = 200, search_user: str = "") -> List[Dict[str, Any]]:
+    if _use_postgres():
+        with _pg_conn() as conn:
+            with conn.cursor() as c:
+                if search_user:
+                    c.execute("""
+                    SELECT id, user_id, started_at, ended_at, consent, user_agent
+                    FROM conversations
+                    WHERE user_id ILIKE %s
+                    ORDER BY id DESC LIMIT %s
+                    """, (f"%{search_user}%", limit))
+                else:
+                    c.execute("""
+                    SELECT id, user_id, started_at, ended_at, consent, user_agent
+                    FROM conversations
+                    ORDER BY id DESC LIMIT %s
+                    """, (limit,))
+                rows = c.fetchall()
+        out = []
+        for r in rows:
+            out.append({
+                "id": r[0],
+                "user_id": r[1],
+                "started_at": r[2].isoformat() if r[2] else "",
+                "ended_at": r[3].isoformat() if r[3] else "",
+                "consent": bool(r[4]),
+                "user_agent": r[5],
+            })
+        return out
+    else:
+        with _sqlite_conn() as conn:
+            c = conn.cursor()
+            if search_user:
+                c.execute("""
+                SELECT id, user_id, started_at, ended_at, consent, user_agent
+                FROM conversations
+                WHERE user_id LIKE ?
+                ORDER BY id DESC LIMIT ?
+                """, (f"%{search_user}%", limit))
+            else:
+                c.execute("""
+                SELECT id, user_id, started_at, ended_at, consent, user_agent
+                FROM conversations
+                ORDER BY id DESC LIMIT ?
+                """, (limit,))
+            rows = c.fetchall()
+        return [
+            {"id": r[0], "user_id": r[1], "started_at": r[2], "ended_at": r[3],
+             "consent": bool(r[4]), "user_agent": r[5]}
+            for r in rows
+        ]
 
-# -------------------------------
-# KPI-taulukko ja governance-kaavio (wow-efekti #3)
-# -------------------------------
+# ============ Wow-efekti: KPI & Governance ============
+
 def render_kpi_table():
     data = [
         ("Asiakaspalvelu Copilot", "TTFR (time-to-first-response)", "90 s", "≤ 30 s", "LLM-luonnosvastaukset + tietopohja"),
@@ -355,9 +488,8 @@ def detect_intents(text: str) -> set[str]:
         intents.add("gov")
     return intents
 
-# -------------------------------
-# CV-koukku (wow-efekti #5)
-# -------------------------------
+# ============ CV-koukku ============
+
 CV_HOOKS = {
     ("hubspot", "salesforce", "crm"): [
         "Olen rakentanut ja ylläpitänyt HubSpot–Salesforce-integraatioita, joten CRM-prosessit ovat tuttua maastoa.",
@@ -382,6 +514,7 @@ CV_HOOKS = {
         "Olen työskennellyt Suomessa, Saksassa ja Kiinassa – monikulttuurinen yhteistyö sujuu."
     ],
 }
+
 def build_cv_hook(user_query: str) -> str:
     q = user_query.lower()
     picked: list[str] = []
@@ -389,12 +522,11 @@ def build_cv_hook(user_query: str) -> str:
         if any(k in q for k in keys):
             picked.extend(lines[:1])
     if not picked:
-        picked = ["Agentti-Henry:"]
+        picked = ["Kytken AI-ratkaisut bisnesmittareihin – suunnitelmasta tuotantoon ja käyttäjäkoulutukseen."]
     return " ".join(picked[:2])
 
-# -------------------------------
-# Chat-vastaus OpenAI:lla
-# -------------------------------
+# ============ OpenAI chat ============
+
 def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
     resp = client.chat.completions.create(
         model=DEFAULT_MODEL,
@@ -403,9 +535,67 @@ def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
     )
     return resp.choices[0].message.content
 
-# -------------------------------
-# UI
-# -------------------------------
+# ============ Yhteys-CTA (mailto / Calendly / Slack ping) ============
+
+CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", "")
+CALENDLY_URL = st.secrets.get("CALENDLY_URL", "")
+SLACK_WEBHOOK_URL = st.secrets.get("SLACK_WEBHOOK_URL", "")
+
+def transcript_text(conversation_id: int) -> str:
+    msgs = fetch_messages(conversation_id)
+    lines = []
+    for m in msgs:
+        role = m["role"]
+        ts = m["ts"]
+        content = m["content"]
+        lines.append(f"[{ts}] {role.upper()}: {content}")
+    return "\n".join(lines)
+
+def send_slack_ping(last_user_msg: str):
+    if not SLACK_WEBHOOK_URL:
+        st.warning("Slack-webhookia ei ole asetettu.")
+        return
+    import requests
+    profile = f"{st.session_state.get('audience','muu')} {st.session_state.get('audience_name','')} @{st.session_state.get('audience_company','')}"
+    transcript = transcript_text(st.session_state.conversation_id)
+    payload = {
+        "text": f"*Henry-demo – uusi yhteydenotto*\n"
+                f"Profiili: {profile}\n"
+                f"Viesti: {last_user_msg}\n\n"
+                f"*Transkriptio:*\n```{transcript[:3500]}```"  # Slackille turvaraja
+    }
+    try:
+        r = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=8)
+        if r.status_code < 300:
+            st.success("Ping lähetetty Slackiin ✅")
+        else:
+            st.error(f"Slack vastasi koodilla {r.status_code}")
+    except Exception as e:
+        st.error(f"Slack-ping epäonnistui: {e}")
+
+def render_connect_cta(last_user_msg: str = ""):
+    st.markdown("### Ota yhteys")
+    cols = st.columns(3)
+    with cols[0]:
+        if CONTACT_EMAIL:
+            subject = "Hei Henry – jatketaan juttua"
+            body = f"Moi Henry,%0D%0A%0D%0AAsiani: {last_user_msg[:200]}%0D%0A%0D%0ATerveisin, {st.session_state.get('audience_name','')}"
+            st.link_button("📧 Sähköposti", f"mailto:{CONTACT_EMAIL}?subject={subject}&body={body}")
+    with cols[1]:
+        if CALENDLY_URL:
+            st.link_button("📅 Varaa aika", CALENDLY_URL)
+    with cols[2]:
+        if st.button("🔔 Ping Henry (Slack)"):
+            send_slack_ping(last_user_msg)
+
+def wants_connect(text: str) -> bool:
+    t = text.lower()
+    return any(w in t for w in [
+        "ota yhteys", "yhdistä", "voitko välittää", "soita", "mailaa", "sähköposti", "varaa aika", "tapaaminen", "connect"
+    ])
+
+# ============ UI ============
+
 st.set_page_config(
     page_title=APP_NAME,
     page_icon="🤖",
@@ -413,31 +603,23 @@ st.set_page_config(
     layout="wide",
 )
 
-# Kevyt CSS viimeistelyyn (kortit, avatar, typografia)
+# Kevyt CSS
 st.markdown("""
 <style>
-/* Keskitetty hero-kortti */
 .hero {
   display: flex; flex-direction: column; align-items: center; text-align: center;
   gap: 14px; padding: 28px; margin: 6px 0 14px 0;
   border-radius: 18px; border: 1px solid rgba(120,120,120,0.2);
   background: linear-gradient(180deg, rgba(150,150,150,0.06), rgba(120,120,120,0.04));
 }
-.hero img {
-  width: 120px; height: 120px; border-radius: 50%;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.15); object-fit: cover;
-}
-.hero h1 {
-  font-size: 1.6rem; margin: 0;
-}
-.hero p {
-  margin: 0; opacity: 0.85;
-}
+.hero img { width: 120px; height: 120px; border-radius: 50%; box-shadow: 0 6px 24px rgba(0,0,0,0.15); object-fit: cover; }
+.hero h1 { font-size: 1.6rem; margin: 0; }
+.hero p { margin: 0; opacity: 0.85; }
 .footer-note { opacity:0.7; font-size: 0.9rem; margin-top: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Hero header
+# Hero
 avatar_url = get_avatar_url()
 st.markdown(
     f"""
@@ -445,35 +627,50 @@ st.markdown(
   <img src="{avatar_url}" alt="Henry avatar" />
   <h1>Tutustu Henryn CV:seen</h1>
   <p>Data- ja AI-vetoista markkinointia, CRM-kehitystä ja käytännön tekemistä. Kysy mitä vain! ✨</p>
+  <div class="footer-note">Demo tallentaa keskustelut anonyymisti palvelimen tietokantaan.</div>
 </div>
 """,
     unsafe_allow_html=True,
 )
 
-st.caption("Keskustele 'Henry'-agentin kanssa ja tutustu minuun.")
-
-# 1) DB init
+# DB init
 init_db()
 
-# 2) Anonyymi käyttäjä-ID
+# Anonyymi user_id
 if "user_id" not in st.session_state:
     st.session_state.user_id = f"user-{os.urandom(4).hex()}"
 
-# 3) Aloita uusi conversation (tallennus aina päällä)
+# Aloita uusi conversation
 if "conversation_id" not in st.session_state:
-    user_agent = ""  # Streamlit ei anna UA:ta suoraan
-    st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent)
+    st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
 
-# 4) Sivupalkki (oletus collapsed): status + admin
+# Onboarding (kysytään kerran)
+if "audience" not in st.session_state:
+    with st.form("onboarding"):
+        st.subheader("Kuka olet? Räätälöin vastaukseni sinulle.")
+        audience = st.selectbox(
+            "Roolini",
+            ["rekrytoija", "tiiminvetäjä", "data engineer / analyst", "kollega", "media", "muu"],
+            index=0
+        )
+        name = st.text_input("Nimesi (valinnainen)")
+        company = st.text_input("Organisaatio (valinnainen)")
+        submitted = st.form_submit_button("Aloita")
+        if submitted:
+            st.session_state.audience = audience
+            st.session_state.audience_name = name
+            st.session_state.audience_company = company
+            st.rerun()
+
+# Sivupalkki (admin)
 with st.sidebar:
     st.subheader("Status")
     if get_client():
         st.info("Henry-agentti linjoilla: ✅")
     else:
         st.warning("API-yhteys: ❌ ei avainta")
-
     st.markdown("---")
-    st.subheader("Asetukset")
+    st.subheader("Admin")
     admin_pw = st.text_input("Admin-salasana", type="password")
     admin_ok = (admin_pw and st.secrets.get("ADMIN_PASSWORD", "") == admin_pw)
 
@@ -510,10 +707,16 @@ with st.sidebar:
                     key=f"dl_csv_{conv['id']}"
                 )
 
-# 5) System-prompt
+# System-prompt (sis. personoinnin)
 if "messages" not in st.session_state:
+    aud_block = build_audience_block(
+        st.session_state.get("audience", "muu"),
+        st.session_state.get("audience_name", ""),
+        st.session_state.get("audience_company", "")
+    )
     system_prompt = (
         f"{PERSONA}\n\n"
+        f"{aud_block}\n"
         f"ABOUT_ME:\n{ABOUT_ME.strip()}\n\n"
         f"ROOLIN TIIVISTELMÄ:\n{JOB_AD_SUMMARY.strip()}\n\n"
         "Kun sinulta kysytään ideoita tai etenemistä, tarjoa:\n"
@@ -522,18 +725,15 @@ if "messages" not in st.session_state:
         "- 30/60/90 päivän askelmerkit\n"
         "- AI governance -näkökulmat (EU AI Act, riskit, kontrollit)\n"
     )
-    st.session_state.messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": system_prompt}
-    ]
-    # tallenna system-viesti
+    st.session_state.messages: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     save_message(st.session_state.conversation_id, "system", system_prompt)
 
-# 6) Näytä historia (ilman system-viestiä)
+# Näytä historia (ilman system-viestiä)
 for m in st.session_state.messages[1:]:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# 7) Chat input
+# Chat input
 user_msg = st.chat_input("Kysy lisää rooleista, projekteista tai mistä hyvänsä")
 if user_msg:
     st.session_state.messages.append({"role": "user", "content": user_msg})
@@ -548,11 +748,18 @@ if user_msg:
             reply_text = call_chat(client, st.session_state.messages)
         except Exception as e:
             st.error(f"OpenAI-virhe: {e.__class__.__name__}: {e}")
-            reply_text = local_demo_response(user_msg)
+            # Paikallinen fallback
+            reply_text = (
+                f"Kiitos! Palvelun backend ei vastaa juuri nyt. Tässä suuntaviivat:\n\n"
+                f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
+            )
     else:
-        reply_text = local_demo_response(user_msg)
+        reply_text = (
+            f"API-avain puuttuu. Tässä suuntaviivat:\n\n"
+            f"{bullets_ai_opportunities()}\n\n{bullets_ai_governance()}"
+        )
 
-    # Lisää CV-koukku vastauksen alkuun
+    # CV-koukku vastauksen alkuun
     hook = build_cv_hook(user_msg)
     reply_text = f"_{hook}_\n\n{reply_text}"
 
@@ -561,10 +768,13 @@ if user_msg:
 
     with st.chat_message("assistant"):
         st.markdown(reply_text)
-
-        # Intent-pohjaiset visuaalit (KPI-taulukko ja governance-kaavio)
+        # intent-pohjaiset visuaalit
         intents = detect_intents(user_msg)
         if "kpi" in intents:
             render_kpi_table()
         if "gov" in intents:
             render_governance_flow()
+        # jos käyttäjä pyytää yhteyttä, nosta CTA esiin
+        if wants_connect(user_msg):
+            st.info("Hienoa! Tässä suorat yhteystavat ↓")
+        render_connect_cta(user_msg)
