@@ -578,7 +578,7 @@ for m in st.session_state.messages:
         st.markdown(m["content"])
 
 # ============== Chat input & käsittely ==============
-user_msg = st.chat_input("Kirjoita tähän…")
+user_msg = st.chat_input("Voit kysyä Henrystä, esimerkiksi hänen urastaan ja kokemuksistaan.")
 
 if user_msg:
     # 1) Käyttäjän viesti talteen ja ruutuun
