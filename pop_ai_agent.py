@@ -515,7 +515,13 @@ def render_governance_flow():
     st.subheader("AI governance – prosessi")
     st.graphviz_chart(dot, use_container_width=True)
 
-def detect_intents(text: str) -> set[str]:
+def detect_intents(text) -> set[str]:
+    # Kestää None/dict/list → pakotetaan stringiksi
+    if not isinstance(text, str):
+        try:
+            text = str(text)
+        except Exception:
+            text = ""
     t = text.lower()
     intents = set()
     if any(w in t for w in ["kpi", "mittari", "sla", "ttfr", "tavoite", "tavoitteet"]):
@@ -523,6 +529,7 @@ def detect_intents(text: str) -> set[str]:
     if any(w in t for w in ["governance", "ai act", "risk", "selitettävyys", "audit", "valvonta"]):
         intents.add("gov")
     return intents
+
 
 # ========= CV-koukku =========
 
@@ -770,21 +777,20 @@ st.session_state.messages.append({"role": "assistant", "content": reply_text})
 save_message(st.session_state.conversation_id, "assistant", reply_text)
 
 with st.chat_message("assistant"):
+    # CV-koukku heti alkuun
+    hook = build_cv_hook(user_msg or "")
+    reply_text = f"_{hook}_\n\n{reply_text}"
     st.markdown(reply_text)
-    # intent-pohjaiset visualisoinnit
-    intents = detect_intents(user_msg)
+
+    # intent-pohjaiset visut
+    intents = detect_intents(user_msg or "")
     if "kpi" in intents:
         render_kpi_table()
     if "gov" in intents:
         render_governance_flow()
 
-# Yhteys-CTA: näytetään vain jos käyttäjä pyytää TAI kun keskustelua on ollut jo hetki (≥ 3 user-viestiä)
-# ja vain kerran per sessio.
-if (
-    user_msg
-    and not st.session_state.get("cta_shown", False)
-    and (wants_connect(user_msg) or sum(1 for m in st.session_state.messages if m["role"] == "user") >= 3)
-):
-    st.info("Haluaisitko jatkaa Henrin kanssa suoraan?")
-    render_connect_cta(user_msg)
-    st.session_state.cta_shown = True
+# Yhteys: näytetään vain jos käyttäjä pyytää tai jos keskustelua on ollut jo hetki
+if user_msg and (wants_connect(user_msg or "") or len([m for m in st.session_state.messages if m["role"] == "user"]) >= 3):
+    st.info("Haluaisitko jatkaa Henryn kanssa suoraan?")
+    render_connect_cta(user_msg or "")
+
