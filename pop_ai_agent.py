@@ -575,7 +575,7 @@ if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
 
 # Tervehdys vain kerran
-if not st.session_state.greeted and not st.session_state.messages:
+    if not st.session_state.greeted and not st.session_state.messages:
     greeting = "Hei! Olen **Agentti Henry** – Henryn puolesta vastaava agentti. Kuka olet ja miten voin auttaa? 😊"
     st.session_state.messages.append({"role": "assistant", "content": greeting})
     save_message(st.session_state.conversation_id, "assistant", greeting)
