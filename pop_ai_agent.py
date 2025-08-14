@@ -548,7 +548,7 @@ def build_cv_hook(user_query: str) -> str:
         if any(k in q for k in keys):
             picked.extend(lines[:1])
     if not picked:
-        picked = ["Kytken AI-ratkaisut bisnesmittareihin – suunnitelmasta tuotantoon ja käyttäjäkoulutukseen."]
+        picked = ["Agentti Henry:"]
     return " ".join(picked[:2])
 
 # ========= Yhteys-CTA =========
