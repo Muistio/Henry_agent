@@ -274,7 +274,32 @@ def _pg_conn():
     return psycopg2.connect(DATABASE_URL)
 
 def _use_postgres() -> bool:
-    return DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
+    """
+    Päätä kerran per sessio käytetäänkö Postgresta:
+    - jos DATABASE_URL puuttuu -> False
+    - jos yhteystesti epäonnistuu -> lukitse False koko sessiolle
+    - jos onnistuu -> True
+    """
+    if not (DATABASE_URL and (DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://"))):
+        st.session_state.use_postgres = False
+        return False
+
+    # jos olemme jo päättäneet aiemmin
+    if "use_postgres" in st.session_state:
+        return bool(st.session_state.use_postgres)
+
+    try:
+        import psycopg2
+        # nopea “poke”: älä tee mitään, vain avaa & sulje
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=5, sslmode="require")
+        conn.close()
+        st.session_state.use_postgres = True
+    except Exception as e:
+        st.session_state.use_postgres = False
+        st.warning(f"Postgres ei käytettävissä ({e}); lukitaan SQLiteen täksi sessioksi.")
+
+    return bool(st.session_state.use_postgres)
+
 
 def init_db():
     if _use_postgres():
