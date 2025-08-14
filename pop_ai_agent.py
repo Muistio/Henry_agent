@@ -609,7 +609,10 @@ st.markdown(
 
 # Status-sivupalkki (vain infoa)
 with st.sidebar:
-
+    if _use_postgres():
+        st.success(f"Yhteys OK (Postgres {_safe_dbu(DATABASE_URL)})")
+    else:
+        st.info("Yhteys OK (SQLite /mount/data/chatlogs.db)")
     if get_client():
     st.subheader("Status")
         st.info("Henry-agentti linjoilla: ✅")
