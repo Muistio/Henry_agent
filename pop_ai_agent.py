@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-Henry AI advisor -demo (Streamlit) — siistitty ilman admin-valikkoa
-- Onboarding chatissa: "Hei, kukas sinä olet ja miten voin auttaa?" → personoitu sävy ja fokus
-- Hero-avatar + freesi header
-- CV-koukku: sidotaan vastaukset Henryn taustaan (kevyt heuristiikka käyttäjän kysymyksestä)
+Agentti Henry — Streamlit-demo
+
+- Onboarding chatissa: "Hei! Olen Agentti Henry… Kuka olet ja miten voin auttaa?"
+- System-prompt rakennetaan vasta ensimmäisen käyttäjän viestin perusteella (personointi)
+- Hero-avatar + freesi header ("Agentti Henry")
+- CV-koukku: kevyt heuristiikka käyttäjän kysymyksestä (lisätään vastauksen alkuun vain jos osuu)
 - KPI-taulukko + AI governance -kaavio (näytetään vain, jos viestissä pyydetään KPI/governance)
 - Chat-loki tietokantaan reaaliajassa:
-    * Supabase Postgres (pooled, 6543, sslmode=require) jos DATABASE_URL toimii
+    * Supabase Postgres (pooler, 6543, sslmode=require) jos DATABASE_URL toimii
     * muutoin SQLite (/mount/data/chatlogs.db)
-- Yhteys-CTA: mailto / Calendly, mutta näytetään vasta pyydettäessä tai 3+ käyttäjän viestin jälkeen
+- Yhteys-CTA: mailto / Calendly — näytetään vain pyydettäessä tai 3+ käyttäjän viestin jälkeen
 - API-avain vain secrets/env – ei koskaan UI:ssa
 
 Secrets-esimerkit:
@@ -18,12 +20,11 @@ OPENAI_API_KEY = "sk-..."
 DATABASE_URL   = "postgresql://postgres.<projectid>:<password>@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
 CONTACT_EMAIL  = "etunimi.sukunimi@example.com"
 CALENDLY_URL   = "https://calendly.com/henry/30min"
-GITHUB_USERNAME = "oma-gh-kayttaja"  # tai GITHUB_AVATAR_URL
+GITHUB_USERNAME = "oma-gh-kayttaja"  # tai GITHUB_AVATAR_URL = "https://avatars.githubusercontent.com/u/XXXX?v=4"
 """
 
 # ============== Tuonnit ==============
 import os
-import json
 import sqlite3
 import re
 from datetime import datetime
@@ -35,7 +36,7 @@ import streamlit as st
 from openai import OpenAI
 
 # ============== Perusasetukset ==============
-APP_NAME = "Tutustu Henryn CV:seen 🤖"
+APP_NAME = "Agentti Henry 🤖"
 DEFAULT_MODEL = "gpt-4o-mini"   # nopea ja edullinen
 
 # Kirjoituskelpoinen polku myös Streamlit Cloudissa
@@ -46,7 +47,6 @@ else:
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "chatlogs.db")
 
-
 # ============== DB URL siistijä (Supabase PG → else SQLite) ==============
 DATABASE_URL = st.secrets.get("DATABASE_URL", "") or os.getenv("DATABASE_URL", "")
 
@@ -54,6 +54,7 @@ def _clean_db_url(u: str) -> str:
     if not u:
         return ""
     u = u.strip().strip('"').strip("'")
+    # placeholderiksi jäänyt demo-domain -> pakota SQLiteen
     if "db.xxxxx.supabase.co" in u:
         return ""
     return u
@@ -68,7 +69,6 @@ def _safe_dbu(mask_target: str) -> str:
         return f"{host}:{port}"
     except Exception:
         return "?"
-
 
 # ============== Henryn tausta & persona ==============
 ABOUT_ME = """
@@ -90,7 +90,6 @@ Työkokemus (poimintoja):
 - Rohje Oy (2018–): Co-founder – datavetoista kasvua, Shopify-optimointi, hakukone- ja somemainonta.
 - Telia (2017): Marketing specialist – B2B-myyntiverkoston markkinointi, tapahtumat, B2B-some.
 - Digi Electronics, Shenzhen (2017): Marketing assistant – Analytics, Adwords, Smartly; “employee of the quarter”.
-- Jyväskylä ES (2014–2016): Hallituksen pj (2015) – Spotlight-startup-tapahtuma.
 
 Koulutus: KTM (JYU), Tradenomi (JAMK), energia-alan opintoja (JAMK).
 Kielet: Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
@@ -206,7 +205,6 @@ def extract_name_company(text: str) -> tuple[str, str]:
         company = m2.group(2).strip()
     return name, company
 
-
 # ============== Pikatekstit & intentit ==============
 def bullets_ai_opportunities() -> str:
     return "\n".join([
@@ -241,7 +239,6 @@ def detect_intents(text) -> set[str]:
     if any(w in t for w in ["governance", "ai act", "risk", "selitettävyys", "audit", "valvonta"]):
         intents.add("gov")
     return intents
-
 
 # ============== CV-koukku ==============
 CV_HOOKS = {
@@ -278,7 +275,6 @@ def build_cv_hook(user_query) -> str:
             picked.extend(lines[:1])
     return " ".join(picked[:2]).strip()
 
-
 # ============== OpenAI ==============
 def get_api_key() -> str:
     try:
@@ -306,7 +302,6 @@ def call_chat(client: OpenAI, messages: List[Dict[str, str]]) -> str:
     )
     return resp.choices[0].message.content
 
-
 # ============== Avatar ==============
 def get_avatar_url() -> str:
     direct = st.secrets.get("GITHUB_AVATAR_URL", "")
@@ -316,7 +311,6 @@ def get_avatar_url() -> str:
     if user:
         return f"https://github.com/{user}.png?size=240"
     return "https://api.dicebear.com/7.x/thumbs/svg?seed=Henry"
-
 
 # ============== DB: SQLite oletus, Supabase PG jos saatavilla ==============
 def _sqlite_conn():
@@ -370,7 +364,7 @@ def init_db():
             return
         except Exception as e:
             st.session_state.use_postgres = False
-            st.warning(f"PG-init epäonnistui ({e}); siirrytään SQLiteen.")x
+            st.warning(f"PG-init epäonnistui ({e}); siirrytään SQLiteen.")
     # SQLite
     with _sqlite_conn() as conn:
         c = conn.cursor()
@@ -468,7 +462,6 @@ def fetch_messages(conversation_id: int) -> List[Dict[str, Any]]:
         rows = c.fetchall()
     return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
 
-
 # ============== Yhteys-CTA (vain pyydettäessä tai 3+ user-viestin jälkeen) ==============
 CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", os.getenv("CONTACT_EMAIL", ""))
 CALENDLY_URL = st.secrets.get("CALENDLY_URL", os.getenv("CALENDLY_URL", ""))
@@ -502,7 +495,6 @@ def wants_connect(text) -> bool:
     ]
     return any(k in t for k in keywords)
 
-
 # ============== UI ==============
 st.set_page_config(page_title=APP_NAME, page_icon="🤖", initial_sidebar_state="collapsed", layout="wide")
 
@@ -528,7 +520,7 @@ st.markdown(
     f"""
 <div class="hero">
   <img src="{avatar_url}" alt="Henry avatar" />
-  <h1>Tutustu Henryn CV:seen</h1>
+  <h1>Agentti Henry</h1>
   <p>Data- ja AI-vetoista markkinointia, CRM-kehitystä ja käytännön tekemistä. Kysy mitä vain! ✨</p>
   <div class="footer-note">Demo tallentaa keskustelut anonyymisti tietokantaan.</div>
 </div>
@@ -547,13 +539,9 @@ with st.sidebar:
 # ============== Appin tila & DB init ==============
 init_db()
 
-# Viestipinon ja profiilitietojen alustus
-if "profile_text" not in st.session_state:
-    st.session_state.profile_text = None
-
-# Viestipinon ja profiilitietojen alustus
+# Session state init (yksi yhtenäinen blokki)
 if "messages" not in st.session_state:
-    st.session_state.messages = []  # varmistetaan että lista on olemassa
+    st.session_state.messages = []
 if "profile_text" not in st.session_state:
     st.session_state.profile_text = None
 if "audience" not in st.session_state:
@@ -564,7 +552,8 @@ if "audience_company" not in st.session_state:
     st.session_state.audience_company = ""
 if "system_built" not in st.session_state:
     st.session_state.system_built = False
-
+if "greeted" not in st.session_state:
+    st.session_state.greeted = False
 
 # Anonyymi user_id
 if "user_id" not in st.session_state:
@@ -574,21 +563,21 @@ if "user_id" not in st.session_state:
 if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
 
-# Tervehdys vain kerran
+# Ensitervehdys (vain kerran)
 if not st.session_state.greeted and not st.session_state.messages:
     greeting = "Hei! Olen **Agentti Henry** – Henryn puolesta vastaava agentti. Kuka olet ja miten voin auttaa? 😊"
     st.session_state.messages.append({"role": "assistant", "content": greeting})
     save_message(st.session_state.conversation_id, "assistant", greeting)
     st.session_state.greeted = True
 
-# ===== Näytä historia (ilman system-viestejä) =====
+# Näytä historia (ilman system-viestejä)
 for m in st.session_state.messages:
     if m.get("role") == "system":
         continue
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# ===== Chat input & käsittely =====
+# ============== Chat input & käsittely ==============
 user_msg = st.chat_input("Kirjoita tähän…")
 
 if user_msg:
