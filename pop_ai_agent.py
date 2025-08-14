@@ -692,8 +692,6 @@ if "conversation_id" not in st.session_state:
     st.session_state.conversation_id = start_conversation(st.session_state.user_id, user_agent="")
 
 # Viestipinon ja profiilitietojen alustus
-if "messages" not in st.session_state:
-    st.session_state.messages = []  # tyhjä pino aluksi
 if "profile_text" not in st.session_state:
     st.session_state.profile_text = None
 if "audience" not in st.session_state:
