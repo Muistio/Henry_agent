@@ -609,6 +609,8 @@ st.markdown(
 
 # Status-sivupalkki (vain infoa)
 with st.sidebar:
+
+    if get_client():
     st.subheader("Status")
         st.info("Henry-agentti linjoilla: ✅")
     else:
