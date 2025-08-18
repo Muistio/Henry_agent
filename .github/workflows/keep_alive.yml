@@ -1,15 +1,39 @@
-# .github/workflows/keep_alive_ping.yml
 name: Keep Streamlit app awake by ping
 
 on:
   schedule:
-    - cron: '*/60 * * * *'   # ping 60 min välein
+    - cron: '*/60 * * * *'   # 60 min välein
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Curl app
+      - name: Try HEAD (no redirects) without trailing slash
         run: |
-          curl -sS -L https://henryagent.streamlit.app/ > /dev/null
+          curl -I --fail --silent --show-error --max-time 30 "https://henryagent.streamlit.app" > /dev/null
+
+      - name: Try HEAD (no redirects) with trailing slash (fallback)
+        if: failure()
+        run: |
+          curl -I --fail --silent --show-error --max-time 30 "https://henryagent.streamlit.app/" > /dev/null
+
+      - name: Try GET with limited redirects (fallback)
+        if: failure()
+        run: |
+          curl --fail --silent --show-error \
+               --http1.1 \
+               --max-redirs 10 \
+               --max-time 45 \
+               -A "Mozilla/5.0 (keep-alive bot; +github-actions)" \
+               "https://henryagent.streamlit.app/?ping=$(date +%s)" > /dev/null
+
+      - name: Try GET with limited redirects + trailing slash (final fallback)
+        if: failure()
+        run: |
+          curl --fail --silent --show-error \
+               --http1.1 \
+               --max-redirs 10 \
+               --max-time 45 \
+               -A "Mozilla/5.0 (keep-alive bot; +github-actions)" \
+               "https://henryagent.streamlit.app/?ping=$(date +%s)/" > /dev/null
