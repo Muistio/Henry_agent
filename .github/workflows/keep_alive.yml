@@ -3,7 +3,7 @@ name: Keep Streamlit app awake by ping
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # ping 30 min välein
+    - cron: '*/60 * * * *'   # ping 60 min välein
   workflow_dispatch:
 
 jobs:
