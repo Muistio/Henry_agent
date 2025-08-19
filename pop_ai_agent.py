@@ -520,8 +520,8 @@ st.markdown(
 <div class="hero">
   <img src="{avatar_url}" alt="Henry avatar" />
   <h1>Agentti Henry</h1>
-  <p>Data- ja AI-asiantuntija. Tutustu ja kysy mitä vain! ✨</p>
-  <div class="footer-note">Demo tallentaa keskustelut anonyymisti tietokantaan.</div>
+  <p>Data- ja AI-asiantuntija. Tutustu Henryyn täällä! ✨</p>
+  <div class="footer-note">CV, projektit ja harrastukset. Kysymällä selviää!</div>
 </div>
 """,
     unsafe_allow_html=True,
