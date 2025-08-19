@@ -102,7 +102,7 @@ AI & data -kohokohdat:
 """
 
 JOB_AD_SUMMARY = """
-POP AI Advisor vastaa pankkiryhmän AI-kehityksen suunnittelusta ja koordinoinnista, ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tukemisesta sekä sisäisestä asiantuntijuudesta ja koulutuksesta.
+AI Advisor vastaa AI-kehityksen suunnittelusta ja koordinoinnista, ratkaisujen suunnittelusta ja mallinnuksesta, ennustavan analytiikan kehittämisestä, AI-käytäntöjen juurruttamisesta, prosessi- ja data-analyysistä, Data- ja Tekoälystrategian tukemisesta sekä sisäisestä asiantuntijuudesta ja koulutuksesta.
 """
 
 PERSONA = (
