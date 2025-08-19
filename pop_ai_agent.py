@@ -468,20 +468,14 @@ CONTACT_EMAIL = st.secrets.get("CONTACT_EMAIL", os.getenv("CONTACT_EMAIL", ""))
 CALENDLY_URL = st.secrets.get("CALENDLY_URL", os.getenv("CALENDLY_URL", ""))
 
 def render_connect_cta(last_user_msg: str = ""):
-    if not CONTACT_EMAIL and not CALENDLY_URL:
-        return
+    email = "henry@invivian.fi"
+    calendly_url = "https://calendly.com/henry-wilen"  # vaihda oma osoitteesi tähän
+
     st.markdown("### Ota yhteys")
-    if CONTACT_EMAIL:
-        subject = "Hei Henry – jatketaan juttua"
-        body = (
-            f"Moi Henry,%0D%0A%0D%0A"
-            f"Asiani: {last_user_msg[:200]}%0D%0A%0D%0A"
-            f"Terveisin, {st.session_state.get('audience_name','')}"
-        )
-        mailto = f"mailto:{CONTACT_EMAIL}?subject={subject}&body={body}"
-        st.markdown(f"[📧 Sähköposti]({mailto})")
-    if CALENDLY_URL:
-        st.markdown(f"[📅 Varaa aika]({CALENDLY_URL})")
+    # Sähköposti
+    st.markdown(f"📧 [Sähköposti]({f'mailto:{email}'})")
+    # Calendly
+    st.markdown(f"📅 [Varaa aika]({calendly_url})")
 
 def wants_connect(text) -> bool:
     if not isinstance(text, str) or not text:
