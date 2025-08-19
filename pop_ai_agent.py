@@ -469,7 +469,7 @@ CALENDLY_URL = st.secrets.get("CALENDLY_URL", os.getenv("CALENDLY_URL", ""))
 
 def render_connect_cta(last_user_msg: str = ""):
     email = "henry@invivian.fi"
-    calendly_url = "https://calendly.com/henry-wilen"  # vaihda oma osoitteesi tähän
+    calendly_url = "https://calendly.com/hjmwilen"  
 
     st.markdown("### Ota yhteys")
     # Sähköposti
