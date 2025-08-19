@@ -15,12 +15,7 @@ Agentti Henry — Streamlit-demo
 - Yhteys-CTA: mailto / Calendly — näytetään vain pyydettäessä tai 3+ käyttäjän viestin jälkeen
 - API-avain vain secrets/env – ei koskaan UI:ssa
 
-Secrets-esimerkit:
-OPENAI_API_KEY = "sk-..."
-DATABASE_URL   = "postgresql://postgres.<projectid>:<password>@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
-CONTACT_EMAIL  = "etunimi.sukunimi@example.com"
-CALENDLY_URL   = "https://calendly.com/henry/30min"
-GITHUB_USERNAME = "oma-gh-kayttaja"  # tai GITHUB_AVATAR_URL = "https://avatars.githubusercontent.com/u/XXXX?v=4"
+
 """
 
 # ============== Tuonnit ==============
