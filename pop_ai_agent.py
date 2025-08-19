@@ -327,6 +327,8 @@ def _use_postgres() -> bool:
         import psycopg2
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=6, sslmode="require")
         conn.close()
+               st.session_state.use_postgres = True
+        st.info(f"Tietokanta: Postgres ({_safe_dbu(DATABASE_URL)})")
 
     except Exception as e:
         st.session_state.use_postgres = False
