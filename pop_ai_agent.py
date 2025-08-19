@@ -4,9 +4,9 @@
 """
 Agentti Henry — Streamlit-demo
 
-- Onboarding chatissa: "Hei! Olen Agentti Henry… Kuka olet ja miten voin auttaa?"
+- Onboarding chatissa: "Hei! Olen Agentti-Henry… Kuka olet ja miten voin auttaa?"
 - System-prompt rakennetaan vasta ensimmäisen käyttäjän viestin perusteella (personointi)
-- Hero-avatar + freesi header ("Agentti Henry")
+- Hero-avatar + freesi header ("Agentti-Henry")
 - CV-koukku: kevyt heuristiikka käyttäjän kysymyksestä (lisätään vastauksen alkuun vain jos osuu)
 - KPI-taulukko + AI governance -kaavio (näytetään vain, jos viestissä pyydetään KPI/governance)
 - Chat-loki tietokantaan reaaliajassa:
@@ -36,7 +36,7 @@ import streamlit as st
 from openai import OpenAI
 
 # ============== Perusasetukset ==============
-APP_NAME = "Agentti Henry 🤖"
+APP_NAME = "Agentti-Henry 🤖"
 DEFAULT_MODEL = "gpt-4o-mini"   # nopea ja edullinen
 
 # Kirjoituskelpoinen polku myös Streamlit Cloudissa
@@ -519,7 +519,7 @@ st.markdown(
     f"""
 <div class="hero">
   <img src="{avatar_url}" alt="Henry avatar" />
-  <h1>Agentti Henry</h1>
+  <h1>Agentti-Henry</h1>
   <p>Data- ja AI-asiantuntija markkinointitaustalla. Tutustu Henryyn täällä! ✨</p>
   <div class="footer-note">CV, projektit tai harrastukset. Kysymällä selviää!</div>
 </div>
@@ -564,7 +564,7 @@ if "conversation_id" not in st.session_state:
 
 # Ensitervehdys (vain kerran)
 if not st.session_state.greeted and not st.session_state.messages:
-    greeting = "Hei! Olen **Agentti Henry** – Henryn puolesta vastaava agentti. Kuka olet ja miten voin auttaa? 😊"
+    greeting = "Hei! Olen **Agentti-Henry** – Henryn puolesta vastaava agentti. Kuka olet ja miten voin auttaa? 😊"
     st.session_state.messages.append({"role": "assistant", "content": greeting})
     save_message(st.session_state.conversation_id, "assistant", greeting)
     st.session_state.greeted = True
