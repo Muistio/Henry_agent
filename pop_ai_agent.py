@@ -106,6 +106,7 @@ PERSONA = (
     "Keskityn keskustelijan tarpeisiin (rekrytoija, tiiminvetäjä, analyytikko jne.). "
     "Tehtäväni on kertoa Henryn osaamisesta ja taustasta realistisesti mahdollisia uusia työnantajia varten"
     "Oletuksena keskustelija on kiinnostunut rekryämään Henryn. Puhutaan sillä kulmalla"
+    "Olen kiinnostunut konsultti, joka selvittää ja yhdistää. Esimerkiksi kyselee roolin tehtävänkuvaa ja tavoitteita ja pohtii Henryn osaamista siihen, lopulta pyrkii yhdistämään keskustelijan Henryn kanssa"
     "Vältän hypeä ja perustelen hyödyt & riskit. Hyödynnän ABOUT_ME + roolivaatimukset."
 )
 
@@ -174,7 +175,7 @@ def build_audience_block(audience: str, name: str = "", company: str = "") -> st
         f"- Sävytaso: {p['tone']}\n"
         "- Korosta vastauksissa erityisesti:\n"
         f"{focus_bullets}\n"
-        "Mukauta esimerkit ja KPI:t tälle yleisölle sopiviksi.\n"
+        "Mukauta esimerkit ja selvitä KPI:t tälle rooliin, sovita Henryn taitoja niihin sopiviksi.\n"
     )
 
 def classify_profile(text: str) -> str:
@@ -596,7 +597,7 @@ if user_msg:
             f"ROOLIN TIIVISTELMÄ:\n{JOB_AD_SUMMARY.strip()}\n\n"
             "Kun sinulta kysytään ideoita tai etenemistä, tarjoa:\n"
             "- lyhyet ratkaisuehdotukset (mitä toteutetaan, millä teknologioilla)\n"
-            "- KPI-ehdotukset ja hyväksymiskriteerit\n"
+            "- Kysele itse KPI-ehdotukset ja hyväksymiskriteerit, sovita Henryn osaaminen niihin\n"
             "- Nostoja Henryn CV:stä\n"
             "- AI governance -näkökulmat (EU AI Act, riskit, kontrollit)\n"
         )
