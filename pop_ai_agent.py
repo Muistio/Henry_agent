@@ -487,6 +487,7 @@ def wants_connect(text) -> bool:
 
 # ============== UI ==============
 st.set_page_config(page_title=APP_NAME, page_icon="🤖", initial_sidebar_state="collapsed", layout="wide")
+st.markdown("<style>header [data-testid='stToolbar']{display:none!important}</style>", unsafe_allow_html=True)
 
 # Kevyt CSS
 st.markdown("""
