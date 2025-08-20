@@ -13,7 +13,7 @@ Agentti Henry — Streamlit-demo
     * Supabase Postgres (pooler, 6543, sslmode=require) jos DATABASE_URL toimii
     * muutoin SQLite (/mount/data/chatlogs.db)
 - Yhteys-CTA: mailto / Calendly — näytetään vain pyydettäessä tai 3+ käyttäjän viestin jälkeen
-- API-avain vain secrets/env – ei koskaan UI:ssa
+
 
 
 """
@@ -93,6 +93,7 @@ AI & data -kohokohdat:
 - Python-projekteja: tuotetietojen haku, markkinakatsaus, kilpailijavertailu
 - Liiketoimintalähtöinen AI: arvokohteiden tunnistus → tuotantoon vienti → käyttäjäkoulutus
 - Google Cloud data/AI, Microsoft Copilot/Graph
+- LLM projekteja kuten tämä tässä
 - AI governance & EU AI Act käytäntöön (riskit, kontrollit, selitettävyys)
 """
 
