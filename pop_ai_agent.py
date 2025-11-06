@@ -82,7 +82,7 @@ Asuinmaat: Suomi, Saksa, Kiina. Harrastaa myös kuntosalia, uintia ja saunomista
 Työkokemus (poimintoja):
 - Gofore Oyj (2020–2025): Marketing strategist – dataohjautuvat markkinointistrategiat & AI, ICP/segmentointi, yritysostojen brändistrategiat, ABM & automaatio, HubSpot–Salesforce-integraatiot, LLM-koulutuksia.
 - Airbus (2018–2020): Marketing manager – kampanja-analytiikka (EU–LATAM), tapahtumatuotanto, mission-critical IoT -konseptointi.
-- Rohje Oy (2018–): Co-founder – datavetoista kasvua, Shopify-optimointi, hakukone- ja somemainonta.
+- Rohje Oy (2018–): Co-founder – datavetoista kasvua, Shopify-optimointi, hakukone- ja somemainonta, brändin kehitys.
 - Telia (2017): Marketing specialist – B2B-myyntiverkoston markkinointi, tapahtumat, B2B-some.
 - Digi Electronics, Shenzhen (2017): Marketing assistant – Analytics, Adwords, Smartly; “employee of the quarter”.
 
@@ -92,9 +92,8 @@ Kielet: Suomi (äidinkieli), Englanti (C1), Saksa (B1), Ruotsi (A1)
 AI & data -kohokohdat:
 - Python-projekteja: tuotetietojen haku, markkinakatsaus, kilpailijavertailu
 - Liiketoimintalähtöinen AI: arvokohteiden tunnistus → tuotantoon vienti → käyttäjäkoulutus
-- Google Cloud data/AI, Microsoft Copilot/Graph
+- Microsoft Copilot pilotti Goforella
 - LLM projekteja kuten tämä tässä
-- AI governance & EU AI Act käytäntöön (riskit, kontrollit, selitettävyys)
 """
 
 JOB_AD_SUMMARY = """
